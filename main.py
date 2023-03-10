@@ -20,11 +20,11 @@ def set_seed(seed: int = SEED):
 
 
 def get_args():
-    file_dir = os.path.dirname(__file__) #Directory of this path
+    file_dir = os.path.dirname(__file__)  # Directory of this path
 
     parser = argparse.ArgumentParser(description='UpSampling for Monocular Depth Estimation')
 
-    #Mode
+    # Mode
     parser.set_defaults(train=False)
     parser.set_defaults(evaluate=False)
     parser.add_argument('--train',
@@ -34,7 +34,7 @@ def get_args():
                         dest='evaluate',
                         action='store_true')
 
-    #Data
+    # Data
     parser.add_argument('--data_path',
                         type=str,
                         help='path to train data',
@@ -59,8 +59,7 @@ def get_args():
                         choices=['alhashim', 'tu'],
                         default='alhashim')
 
-
-    #Model
+    # Model
     parser.add_argument('--model',
                         type=str,
                         help='name of the model to be trained',
@@ -70,7 +69,7 @@ def get_args():
                         default=None,
                         help='path to model weights')
 
-    #Checkpoint
+    # Checkpoint
     parser.add_argument('--load_checkpoint',
                         type=str,
                         help='path to checkpoint',
@@ -84,7 +83,7 @@ def get_args():
                         help='path to save results to',
                         default='./results')
 
-    #Optimization
+    # Optimization
     parser.add_argument('--batch_size',
                         type=int,
                         help='batch size',
@@ -102,12 +101,11 @@ def get_args():
                         help='step size of the scheduler',
                         default=15)
 
-    #System
+    # System
     parser.add_argument('--num_workers',
                         type=int,
                         help='number of dataloader workers',
                         default=2)
-
 
     return parser.parse_args()
 
@@ -125,6 +123,7 @@ def main():
     if args.evaluate:
         evaluation_module = Evaluater(args)
         evaluation_module.evaluate()
+
 
 if __name__ == '__main__':
     main()

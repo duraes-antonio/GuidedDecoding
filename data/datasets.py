@@ -13,6 +13,7 @@ torch.manual_seed(SEED)
 Preparation of dataloaders for Datasets
 """
 
+
 def get_dataloader(dataset_name,
                    path,
                    split='train',
@@ -24,9 +25,9 @@ def get_dataloader(dataset_name,
                    uncompressed=False):
     if dataset_name == 'nyu_reduced':
         dataset = get_NYU_dataset(path,
-                split,
-                resolution=resolution,
-                uncompressed=uncompressed)
+                                  split,
+                                  resolution=resolution,
+                                  uncompressed=uncompressed)
     else:
         print('Dataset not existant')
         exit(0)
@@ -41,7 +42,7 @@ def get_dataloader(dataset_name,
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=(split=='train'),
+        shuffle=(split == 'train'),
         num_workers=workers,
         pin_memory=True,
         worker_init_fn=seed_worker,

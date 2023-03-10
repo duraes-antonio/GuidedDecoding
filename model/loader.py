@@ -1,7 +1,7 @@
-import torch.nn as nn
 import torch
 
 from model.GuideDepth import GuideDepth
+
 
 def load_model(model_name, weights_pth):
     model = model_builder(model_name)
@@ -12,6 +12,7 @@ def load_model(model_name, weights_pth):
 
     return model
 
+
 def model_builder(model_name):
     if model_name == 'GuideDepth':
         return GuideDepth(True)
@@ -20,5 +21,3 @@ def model_builder(model_name):
 
     print("Invalid model")
     exit(0)
-
-

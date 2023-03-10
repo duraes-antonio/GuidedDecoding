@@ -14,8 +14,9 @@ from model import loader
 torch.manual_seed(SEED)
 
 max_depths = {
-    'nyu_reduced' : 10.0,
+    'nyu_reduced': 10.0,
 }
+
 
 class Trainer():
     def __init__(self, args):
@@ -38,36 +39,36 @@ class Trainer():
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         self.model = loader.load_model(args.model,
-                                  args.weights_path)
+                                       args.weights_path)
         self.model.to(self.device)
 
         self.train_loader = datasets.get_dataloader(args.dataset,
-                                                 path=args.data_path,
-                                                 split='train',
-                                                 augmentation=args.eval_mode,
-                                                 batch_size=args.batch_size,
-                                                 resolution=args.resolution,
-                                                 workers=args.num_workers)
+                                                    path=args.data_path,
+                                                    split='train',
+                                                    augmentation=args.eval_mode,
+                                                    batch_size=args.batch_size,
+                                                    resolution=args.resolution,
+                                                    workers=args.num_workers)
         self.val_loader = datasets.get_dataloader(args.dataset,
-                                                path=args.data_path.replace('_train', '_test'),
-                                                split='val',
-                                                augmentation=args.eval_mode,
-                                                batch_size=args.batch_size,
-                                                resolution=args.resolution,
-                                                workers=args.num_workers)
+                                                  path=args.data_path.replace('_train', '_test'),
+                                                  split='val',
+                                                  augmentation=args.eval_mode,
+                                                  batch_size=args.batch_size,
+                                                  resolution=args.resolution,
+                                                  workers=args.num_workers)
 
         self.optimizer = optim.Adam(self.model.parameters(),
-                               args.learning_rate)
+                                    args.learning_rate)
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer,
-                                                 args.scheduler_step_size,
-                                                 gamma=0.1)
+                                                      args.scheduler_step_size,
+                                                      gamma=0.1)
 
         if args.eval_mode == 'alhashim':
             self.loss_func = Depth_Loss(0.1, 1, 1, maxDepth=self.maxDepth)
         else:
             self.loss_func = Depth_Loss(1, 0, 0, maxDepth=self.maxDepth)
 
-        #Load Checkpoint
+        # Load Checkpoint
         if args.load_checkpoint != '':
             self.load_checkpoint(args.load_checkpoint)
 
@@ -103,11 +104,10 @@ class Trainer():
 
             accumulated_loss += loss_value.item()
 
-        #Report
+        # Report
         current_time = time.strftime('%H:%M', time.localtime())
         average_loss = accumulated_loss / (len(self.train_loader.dataset) + 1)
         print('{} - Average Training Loss: {:3.4f}'.format(current_time, average_loss))
-
 
     def val_loop(self):
         torch.cuda.empty_cache()
@@ -126,8 +126,7 @@ class Trainer():
                 prediction = self.inverse_depth_norm(inv_prediction)
                 gpu_time = time.time() - t0
 
-
-                if self.debug and i==0:
+                if self.debug and i == 0:
                     self.show_images(image, gt, prediction)
 
                 loss_value = self.loss_func(inv_prediction, self.depth_norm(gt))
@@ -137,7 +136,7 @@ class Trainer():
                 result.evaluate(prediction.data, gt.data)
                 average_meter.update(result, gpu_time, data_time, image.size(0))
 
-        #Report
+        # Report
         avg = average_meter.average()
         current_time = time.strftime('%H:%M', time.localtime())
         average_loss = accumulated_loss / (len(self.val_loader.dataset) + 1)
@@ -153,8 +152,7 @@ class Trainer():
               'REL={average.absrel:.3f}\n'
               'Lg10={average.lg10:.3f}\n'
               't_GPU={time:.3f}\n'.format(
-              average=avg, time=avg.gpu_time))
-
+            average=avg, time=avg.gpu_time))
 
     def load_checkpoint(self, checkpoint_path):
         checkpoint = torch.load(checkpoint_path,
@@ -164,9 +162,8 @@ class Trainer():
         self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
         self.epoch = checkpoint['epoch']
 
-
     def save_checkpoint(self):
-        #Save checkpoint for training
+        # Save checkpoint for training
         checkpoint_dir = os.path.join(self.checkpoint_pth,
                                       'checkpoint_{}.pth'.format(self.epoch))
         torch.save({
@@ -175,16 +172,15 @@ class Trainer():
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'lr_scheduler': self.lr_scheduler.state_dict(),
-            }, checkpoint_dir)
+        }, checkpoint_dir)
         current_time = time.strftime('%H:%M', time.localtime())
         print('{} - Model saved'.format(current_time))
 
-
     def save_model(self):
         best_checkpoint_pth = os.path.join(self.checkpoint_pth,
-                                      f'checkpoint_{self.max_epochs - 1}.pth')
+                                           f'checkpoint_{self.max_epochs - 1}.pth')
         best_model_pth = os.path.join(self.results_pth,
-                                     'best_model.pth')
+                                      'best_model.pth')
 
         checkpoint = torch.load(best_checkpoint_pth)
         torch.save(checkpoint['model'], best_model_pth)
@@ -197,14 +193,12 @@ class Trainer():
         depth[zero_mask] = 0.0
         return depth
 
-
     def depth_norm(self, depth):
         zero_mask = depth == 0.0
         depth = torch.clamp(depth, self.maxDepth / 100, self.maxDepth)
         depth = self.maxDepth / depth
         depth[zero_mask] = 0.0
         return depth
-
 
     def unpack_and_move(self, data):
         if isinstance(data, (tuple, list)):
@@ -221,7 +215,7 @@ class Trainer():
     def show_images(self, image, gt, pred):
         import matplotlib.pyplot as plt
         image_np = image[0].cpu().permute(1, 2, 0).numpy()
-        gt[0, 0, gt[0,0] == 100.0] = 0.1
+        gt[0, 0, gt[0, 0] == 100.0] = 0.1
         plt.imshow(image_np)
         plt.show()
         plt.imshow(gt[0, 0].cpu())

@@ -1,18 +1,17 @@
+import random
+
 import numpy as np
 import torch
-from torchvision import transforms, utils
 from PIL import Image
-from io import BytesIO
-import random
+from torchvision import transforms
+
 
 def _is_pil_image(img):
     return isinstance(img, Image.Image)
 
 
-
 def _is_numpy_image(img):
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
-
 
 
 class RandomHorizontalFlip(object):
@@ -31,7 +30,6 @@ class RandomHorizontalFlip(object):
             depth = depth.transpose(Image.FLIP_LEFT_RIGHT)
 
         return {'image': image, 'depth': depth}
-
 
 
 class RandomVerticalFlip(object):
@@ -66,9 +64,8 @@ class RandomChannelSwap(object):
             raise TypeError('img should be PIL Image. Got {}'.format(type(depth)))
         if random.random() < self.probability:
             image = np.asarray(image)
-            image = Image.fromarray(image[...,list(self.indices[random.randint(0, len(self.indices) - 1)])])
+            image = Image.fromarray(image[..., list(self.indices[random.randint(0, len(self.indices) - 1)])])
         return {'image': image, 'depth': depth}
-
 
 
 class ToTensor(object):
@@ -85,32 +82,32 @@ class ToTensor(object):
             If test, move image to [0,1] and depth to [0, 1]
             """
             image = np.array(image).astype(np.float32) / 255.0
-            depth = np.array(depth).astype(np.float32) #/ self.maxDepth #Why / maxDepth?
+            depth = np.array(depth).astype(np.float32)  # / self.maxDepth #Why / maxDepth?
             image, depth = transformation(image), transformation(depth)
         else:
-            #Fix for PLI=8.3.0
+            # Fix for PLI=8.3.0
             image = np.array(image).astype(np.float32) / 255.0
             depth = np.array(depth).astype(np.float32)
 
-            #For train use DepthNorm
+            # For train use DepthNorm
             zero_mask = depth == 0.0
             image, depth = transformation(image), transformation(depth)
-            depth = torch.clamp(depth, self.maxDepth/100.0, self.maxDepth)
+            depth = torch.clamp(depth, self.maxDepth / 100.0, self.maxDepth)
             depth = self.maxDepth / depth
             depth[:, zero_mask] = 0.0
 
-        #print('Depth after, min: {} max: {}'.format(depth.min(), depth.max()))
-        #print('Image, min: {} max: {}'.format(image.min(), image.max()))
+        # print('Depth after, min: {} max: {}'.format(depth.min(), depth.max()))
+        # print('Image, min: {} max: {}'.format(image.min(), image.max()))
 
         image = torch.clamp(image, 0.0, 1.0)
         return {'image': image, 'depth': depth}
-
 
 
 class CenterCrop(object):
     """
     Wrap torch's CenterCrop
     """
+
     def __init__(self, output_resolution):
         self.crop = transforms.CenterCrop(output_resolution)
 
@@ -127,11 +124,11 @@ class CenterCrop(object):
         return {'image': image, 'depth': depth}
 
 
-
 class Resize(object):
     """
     Wrap torch's Resize
     """
+
     def __init__(self, output_resolution):
         self.resize = transforms.Resize(output_resolution)
 
@@ -149,11 +146,11 @@ class Resize(object):
         return {'image': image, 'depth': depth}
 
 
-
 class RandomRotation(object):
     """
     Wrap torch's Random Rotation
     """
+
     def __init__(self, degrees):
         self.angle = degrees
 
@@ -170,7 +167,6 @@ class RandomRotation(object):
         depth = transforms.functional.rotate(depth, angle)
 
         return {'image': image, 'depth': depth}
-
 
 
 def DepthNorm(depth, maxDepth=1000.0):

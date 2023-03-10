@@ -5,17 +5,20 @@ Code from FastDepth
     Automation (ICRA), 2019
     https://github.com/dwofk/fast-depth
 """
-import torch
 import math
+
 import numpy as np
+import torch
 
 from config import SEED
 
 torch.manual_seed(SEED)
 
+
 def log10(x):
-      """Convert a new tensor with the base-10 logarithm of the elements of x. """
-      return torch.log(x) / math.log(10)
+    """Convert a new tensor with the base-10 logarithm of the elements of x. """
+    return torch.log(x) / math.log(10)
+
 
 class Result(object):
     def __init__(self):
@@ -83,19 +86,19 @@ class AverageMeter(object):
     def update(self, result, gpu_time, data_time, n=1):
         self.count += n
 
-        self.sum_irmse += n*result.irmse
-        self.sum_imae += n*result.imae
-        self.sum_mse += n*result.mse
-        self.sum_rmse += n*result.rmse
-        self.sum_rmse_log += n*result.rmse_log
-        self.sum_mae += n*result.mae
-        self.sum_absrel += n*result.absrel
-        self.sum_lg10 += n*result.lg10
-        self.sum_delta1 += n*result.delta1
-        self.sum_delta2 += n*result.delta2
-        self.sum_delta3 += n*result.delta3
-        self.sum_data_time += n*data_time
-        self.sum_gpu_time += n*gpu_time
+        self.sum_irmse += n * result.irmse
+        self.sum_imae += n * result.imae
+        self.sum_mse += n * result.mse
+        self.sum_rmse += n * result.rmse
+        self.sum_rmse_log += n * result.rmse_log
+        self.sum_mae += n * result.mae
+        self.sum_absrel += n * result.absrel
+        self.sum_lg10 += n * result.lg10
+        self.sum_delta1 += n * result.delta1
+        self.sum_delta2 += n * result.delta2
+        self.sum_delta3 += n * result.delta3
+        self.sum_data_time += n * data_time
+        self.sum_gpu_time += n * gpu_time
 
     def average(self):
         avg = Result()

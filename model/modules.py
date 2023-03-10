@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
 
 class SELayer(nn.Module):
     """
     Taken from:
     https://github.com/moskomule/senet.pytorch/blob/master/senet/se_module.py#L4
     """
+
     def __init__(self, channel, reduction=16):
         super(SELayer, self).__init__()
-        #self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        # self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
             nn.Linear(channel, channel // reduction, bias=False),
             nn.ReLU(inplace=True),
@@ -19,11 +20,10 @@ class SELayer(nn.Module):
 
     def forward(self, x):
         b, c, _, _ = x.size()
-        y = torch.mean(x, dim=[2,3]) # Replacement of avgPool for large kernels for trt
+        y = torch.mean(x, dim=[2, 3])  # Replacement of avgPool for large kernels for trt
         y = y.view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand(x.shape)
-
 
 
 class Guided_Upsampling_Block(nn.Module):
@@ -59,7 +59,7 @@ class Guided_Upsampling_Block(nn.Module):
                 nn.ReLU(inplace=True))
 
             comb_features = (expand_features // 2) * 2
-        elif self.guidance_type =='raw':
+        elif self.guidance_type == 'raw':
             comb_features = expand_features // 2 + guide_features
         else:
             comb_features = expand_features // 2
@@ -80,7 +80,6 @@ class Guided_Upsampling_Block(nn.Module):
         if self.channel_attention:
             self.SE_block = SELayer(comb_features,
                                     reduction=1)
-
 
     def forward(self, guide, depth):
         x = self.feature_conv(depth)

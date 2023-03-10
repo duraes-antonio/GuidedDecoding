@@ -1,46 +1,46 @@
-import time
-import os
 import argparse
+import os
+import time
 
+import matplotlib.pyplot as plt
+import tensorrt as trt
 import torch
 import torchvision
-import tensorrt as trt
 from torch2trt import torch2trt
-import matplotlib.pyplot as plt
 
 from data import datasets
-from model import loader
-from metrics import AverageMeter, Result
 from data import transforms
+from metrics import AverageMeter, Result
+from model import loader
 
 max_depths = {
-    'nyu' : 10.0,
-    'nyu_reduced' : 10.0,
+    'nyu': 10.0,
+    'nyu_reduced': 10.0,
 }
 nyu_res = {
-    'full' : (480, 640),
-    'half' : (240, 320),
-    'mini' : (224, 224)}
+    'full': (480, 640),
+    'half': (240, 320),
+    'mini': (224, 224)}
 
 resolutions = {
-    'nyu' : nyu_res,
-    'nyu_reduced' : nyu_res,
-    }
+    'nyu': nyu_res,
+    'nyu_reduced': nyu_res,
+}
 crops = {
-    'nyu' : [20, 460, 24, 616],
-    'nyu_reduced' : [20, 460, 24, 616]}
+    'nyu': [20, 460, 24, 616],
+    'nyu_reduced': [20, 460, 24, 616]}
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Nano Inference for Monocular Depth Estimation')
 
-    #Mode
+    # Mode
     parser.set_defaults(evaluate=False)
     parser.add_argument('--eval',
                         dest='evaluate',
                         action='store_true')
 
-    #Data
+    # Data
     parser.add_argument('--test_path',
                         type=str,
                         help='path to test data')
@@ -55,8 +55,7 @@ def get_args():
                         choices=['full', 'half'],
                         default='half')
 
-
-    #Model
+    # Model
     parser.add_argument('--model',
                         type=str,
                         help='name of the model to be trained',
@@ -69,16 +68,13 @@ def get_args():
                         help='path to save results to',
                         default='./results')
 
-    #System
+    # System
     parser.add_argument('--num_workers',
                         type=int,
                         help='number of dataloader workers',
                         default=1)
 
-
     return parser.parse_args()
-
-
 
 
 class Inference_Engine():
@@ -95,8 +91,8 @@ class Inference_Engine():
         if not os.path.isdir(self.result_dir):
             os.mkdir(self.result_dir)
         self.results_filename = '{}_{}_{}'.format(args.dataset,
-                args.resolution,
-                args.model)
+                                                  args.resolution,
+                                                  args.model)
 
         self.device = torch.device('cuda:0')
 
@@ -105,16 +101,16 @@ class Inference_Engine():
 
         if args.evaluate:
             self.test_loader = datasets.get_dataloader(args.dataset,
-                                                     path=args.test_path,
-                                                     split='test',
-                                                     batch_size=1,
-                                                     resolution=args.resolution,
-                                                     uncompressed=True,
-                                                     workers=args.num_workers)
+                                                       path=args.test_path,
+                                                       split='test',
+                                                       batch_size=1,
+                                                       resolution=args.resolution,
+                                                       uncompressed=True,
+                                                       workers=args.num_workers)
 
-        if args.resolution=='half':
-            self.upscale_depth = torchvision.transforms.Resize(self.res_dict['full']) #To Full res
-            self.downscale_image = torchvision.transforms.Resize(self.resolution) #To Half res
+        if args.resolution == 'half':
+            self.upscale_depth = torchvision.transforms.Resize(self.res_dict['full'])  # To Full res
+            self.downscale_image = torchvision.transforms.Resize(self.resolution)  # To Half res
 
         self.to_tensor = transforms.ToTensor(test=True, maxDepth=self.maxDepth)
 
@@ -124,15 +120,11 @@ class Inference_Engine():
 
         self.run_evaluation()
 
-
-
     def run_evaluation(self):
         speed_pyTorch = self.pyTorch_speedtest()
         speed_tensorRT = self.tensorRT_speedtest()
         average = self.tensorRT_evaluate()
         self.save_results(average, speed_tensorRT, speed_pyTorch)
-
-
 
     def pyTorch_speedtest(self, num_test_runs=200):
         torch.cuda.empty_cache()
@@ -143,7 +135,7 @@ class Inference_Engine():
                 times = 0.0
 
             x = torch.randn([1, 3, *self.resolution]).cuda()
-            torch.cuda.synchronize() #Synchronize transfer to cuda
+            torch.cuda.synchronize()  # Synchronize transfer to cuda
 
             t0 = time.time()
             result = self.model(x)
@@ -156,8 +148,6 @@ class Inference_Engine():
         print('[PyTorch] FPS: {}\n'.format(fps))
         return times
 
-
-
     def tensorRT_speedtest(self, num_test_runs=200):
         torch.cuda.empty_cache()
         times = 0.0
@@ -167,7 +157,7 @@ class Inference_Engine():
                 times = 0.0
 
             x = torch.randn([1, 3, *self.resolution]).cuda()
-            torch.cuda.synchronize() #Synchronize transfer to cuda
+            torch.cuda.synchronize()  # Synchronize transfer to cuda
 
             t0 = time.time()
             result = self.trt_model(x)
@@ -179,8 +169,6 @@ class Inference_Engine():
         print('[tensorRT] Runtime: {}s'.format(times))
         print('[tensorRT] FPS: {}\n'.format(fps))
         return times
-
-
 
     def convert_PyTorch_to_TensorRT(self):
         x = torch.ones([1, 3, *self.resolution]).cuda()
@@ -199,8 +187,6 @@ class Inference_Engine():
         print('[tensorRT] Engine serialized\n')
         return model_trt, engine
 
-
-
     def tensorRT_evaluate(self):
         torch.cuda.empty_cache()
         self.model = None
@@ -210,7 +196,7 @@ class Inference_Engine():
         for i, data in enumerate(dataset):
             t0 = time.time()
             image, gt = data
-            packed_data = {'image': image, 'depth':gt}
+            packed_data = {'image': image, 'depth': gt}
             data = self.to_tensor(packed_data)
             image, gt = self.unpack_and_move(data)
             image = image.unsqueeze(0)
@@ -237,7 +223,6 @@ class Inference_Engine():
             torch.cuda.synchronize()
             gpu_time1 = time.time() - t1
 
-
             if self.resolution_keyword == 'half':
                 prediction = self.upscale_depth(prediction)
                 prediction_flip = self.upscale_depth(prediction_flip)
@@ -245,12 +230,10 @@ class Inference_Engine():
             if i in self.visualize_images:
                 self.save_image_results(image, gt, prediction, i)
 
-
-            gt = gt[:,:, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
-            gt_flip = gt_flip[:,:, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
-            prediction = prediction[:,:, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
-            prediction_flip = prediction_flip[:,:, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
-
+            gt = gt[:, :, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
+            gt_flip = gt_flip[:, :, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
+            prediction = prediction[:, :, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
+            prediction_flip = prediction_flip[:, :, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
 
             result = Result()
             result.evaluate(prediction.data, gt.data)
@@ -260,7 +243,7 @@ class Inference_Engine():
             result_flip.evaluate(prediction_flip.data, gt_flip.data)
             average_meter.update(result_flip, gpu_time1, data_time, image.size(0))
 
-        #Report 
+        # Report
         avg = average_meter.average()
         current_time = time.strftime('%H:%M', time.localtime())
         print('\n*\n'
@@ -272,10 +255,8 @@ class Inference_Engine():
               'REL={average.absrel:.3f}\n'
               'Lg10={average.lg10:.3f}\n'
               't_GPU={time:.3f}\n'.format(
-              average=avg, time=avg.gpu_time))
+            average=avg, time=avg.gpu_time))
         return avg
-
-
 
     def save_results(self, average, trt_speed, pyTorch_speed):
         file_path = os.path.join(self.result_dir, '{}.txt'.format(self.results_filename))
@@ -290,20 +271,17 @@ class Inference_Engine():
                     ',{average.delta1:.3f}'
                     ',{average.delta2:.3f}'
                     ',{average.delta3:.3f}'.format(
-                        average=average, trt_speed=trt_speed, pyTorch_speed=pyTorch_speed))
-
+                average=average, trt_speed=trt_speed, pyTorch_speed=pyTorch_speed))
 
     def inverse_depth_norm(self, depth):
         depth = self.maxDepth / depth
         depth = torch.clamp(depth, self.maxDepth / 100, self.maxDepth)
         return depth
 
-
     def depth_norm(self, depth):
         depth = torch.clamp(depth, self.maxDepth / 100, self.maxDepth)
         depth = self.maxDepth / depth
         return depth
-
 
     def unpack_and_move(self, data):
         if isinstance(data, (tuple, list)):
@@ -319,8 +297,8 @@ class Inference_Engine():
 
     def save_image_results(self, image, gt, prediction, image_id):
         img = image[0].permute(1, 2, 0).cpu()
-        gt = gt[0,0].permute(0, 1).cpu()
-        prediction = prediction[0,0].permute(0, 1).detach().cpu()
+        gt = gt[0, 0].permute(0, 1).cpu()
+        prediction = prediction[0, 0].permute(0, 1).detach().cpu()
         error_map = gt - prediction
         vmax_error = self.maxDepth / 10.0
         vmin_error = 0.0
@@ -371,7 +349,8 @@ class Dict2Obj(object):
     def __init__(self, dictionary):
         for key in dictionary:
             setattr(self, key, dictionary[key])
-        
+
+
 if __name__ == '__main__':
     args = get_args()
     print(args)
