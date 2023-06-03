@@ -1,22 +1,10 @@
 import argparse
 import os
-import random as native_random
-
-import torch
-from numpy import random as np_random
 
 from config import SEED
 from evaluate import Evaluater
+from reproducibility import set_all_lib_seed
 from training import Trainer
-
-
-def set_seed(seed: int = SEED):
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.manual_seed(seed)
-    native_random.seed(seed)
-    np_random.seed(seed)
-    print(f'seed defined = {seed}')
 
 
 def get_args():
@@ -111,7 +99,7 @@ def get_args():
 
 
 def main():
-    set_seed()
+    set_all_lib_seed(SEED)
     args = get_args()
     print(args)
 

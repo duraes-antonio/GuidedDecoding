@@ -6,13 +6,11 @@ import torch
 import torchvision
 from tqdm import tqdm
 
-from config import SEED
 from dataset import datasets
 from dataset import transforms
 from metrics import AverageMeter, Result
 from model import loader
 
-torch.manual_seed(SEED)
 max_depths = {
     'nyu': 10.0,
     'nyu_reduced': 10.0,

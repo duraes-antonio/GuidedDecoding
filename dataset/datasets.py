@@ -1,13 +1,9 @@
-import random
-
-import numpy
 import torch
 from torch.utils.data import DataLoader
 
 from config import SEED
 from dataset.nyu_reduced import get_NYU_dataset
-
-torch.manual_seed(SEED)
+from reproducibility import set_seed_worker
 
 """
 Preparation of dataloaders for Datasets
@@ -28,15 +24,11 @@ def get_dataloader(dataset_name,
         # dataset = DepthEstimationDataset(read_nyu_csv(path), transform=transform_swin)
         dataset = get_NYU_dataset(path, split, resolution=resolution, uncompressed=uncompressed)
     else:
-        print('Dataset not existant')
+        print('Dataset not existent')
         exit(0)
 
-    def seed_worker(worker_id):
-        numpy.random.seed(SEED)
-        random.seed(SEED)
-
-    g = torch.Generator()
-    g.manual_seed(SEED)
+    dataloader_generator = torch.Generator()
+    dataloader_generator.manual_seed(SEED)
 
     dataloader = DataLoader(
         dataset,
@@ -44,7 +36,7 @@ def get_dataloader(dataset_name,
         shuffle=(split == 'train'),
         num_workers=workers,
         pin_memory=True,
-        worker_init_fn=seed_worker,
-        generator=g,
+        worker_init_fn=set_seed_worker,
+        generator=dataloader_generator,
     )
     return dataloader

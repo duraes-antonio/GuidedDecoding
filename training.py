@@ -3,15 +3,12 @@ import time
 
 import torch
 import torch.optim as optim
+from data import datasets
 from tqdm import tqdm
 
-from config import SEED
-from data import datasets
 from losses import Depth_Loss
 from metrics import AverageMeter, Result
 from model import loader
-
-torch.manual_seed(SEED)
 
 max_depths = {
     'nyu_reduced': 10.0,

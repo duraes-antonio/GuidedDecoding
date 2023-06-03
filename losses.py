@@ -12,10 +12,6 @@ from math import exp
 import torch
 import torch.nn.functional as F
 
-from config import SEED
-
-torch.manual_seed(SEED)
-
 
 class Depth_Loss():
     def __init__(self, alpha, beta, gamma, maxDepth=10.0):

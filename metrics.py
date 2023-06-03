@@ -10,10 +10,6 @@ import math
 import numpy as np
 import torch
 
-from config import SEED
-
-torch.manual_seed(SEED)
-
 
 def log10(x):
     """Convert a new tensor with the base-10 logarithm of the elements of x. """

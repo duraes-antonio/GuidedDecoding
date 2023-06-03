@@ -1,6 +1,5 @@
 import csv
 import os
-import random
 from io import BytesIO
 from pathlib import Path
 from random import shuffle
@@ -11,13 +10,9 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
-from dataset.transforms import Resize, RandomHorizontalFlip, RandomChannelSwap, ToTensor
 from torch.utils.data import Dataset
 
-from config import SEED
-
-random.seed(SEED)
-torch.manual_seed(SEED)
+from dataset.transforms import Resize, RandomHorizontalFlip, RandomChannelSwap, ToTensor
 
 resolution_dict = {
     'full': (480, 640),
