@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from config import SEED
-from data.nyu_reduced import get_NYU_dataset
+from dataset.nyu_reduced import get_NYU_dataset
 
 torch.manual_seed(SEED)
 
@@ -20,14 +20,13 @@ def get_dataloader(dataset_name,
                    resolution='full',
                    augmentation='alhashim',
                    interpolation='linear',
-                   batch_size=8,
-                   workers=4,
+                   batch_size=4,
+                   workers=0,
                    uncompressed=False):
     if dataset_name == 'nyu_reduced':
-        dataset = get_NYU_dataset(path,
-                                  split,
-                                  resolution=resolution,
-                                  uncompressed=uncompressed)
+
+        # dataset = DepthEstimationDataset(read_nyu_csv(path), transform=transform_swin)
+        dataset = get_NYU_dataset(path, split, resolution=resolution, uncompressed=uncompressed)
     else:
         print('Dataset not existant')
         exit(0)

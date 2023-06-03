@@ -11,10 +11,10 @@ import numpy as np
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
+from dataset.transforms import Resize, RandomHorizontalFlip, RandomChannelSwap, ToTensor
 from torch.utils.data import Dataset
 
 from config import SEED
-from data.transforms import Resize, RandomHorizontalFlip, RandomChannelSwap, ToTensor
 
 random.seed(SEED)
 torch.manual_seed(SEED)
@@ -25,7 +25,7 @@ resolution_dict = {
     'mini': (224, 224)}
 
 
-class depthDatasetMemory(Dataset):
+class DepthDataset(Dataset):
     def __init__(self, data: List[Tuple[str, str]], split, transform=None):
         self.data = data
         self.transform = transform
@@ -33,9 +33,8 @@ class depthDatasetMemory(Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
-        base_path = '/home/x/Área de Trabalho/GuidedDecoding/data'
-        image = Image.open(Path(base_path, sample[0]))
-        depth = Image.open(Path(base_path, sample[1]))
+        image = Image.open(Path(sample[0]))
+        depth = Image.open(Path(sample[1]))
         image = np.array(image).astype(np.float32)
         depth = np.array(depth).astype(np.float32)
 
@@ -48,7 +47,7 @@ class depthDatasetMemory(Dataset):
         if self.transform:
             sample = self.transform(sample)
 
-        return sample
+        return (sample['image'], sample['depth'])
 
     def __len__(self):
         return len(self.data)
@@ -82,15 +81,10 @@ class NYU_Testset(Dataset):
         input_zip = ZipFile(zip_path)
         data = {name: input_zip.read(name) for name in input_zip.namelist()}
         self.data = data
-        # self.rgb = torch.from_numpy(np.load(BytesIO(data['eigen_test_rgb.npy']))).type(torch.float32) #Range [0,1]
-        # self.depth = torch.from_numpy(np.load(BytesIO(data['eigen_test_depth.npy']))).type(torch.float32) #Range[0, 10]
 
     def __getitem__(self, idx):
-        # image = self.rgb[idx]
-        # depth = self.depth[idx]
-
-        # TODO: Editar para deixar de ser hard coded
-        data_numpy = np.load(BytesIO(self.data['nyu_test_001.npz']))
+        key_item = list(self.data.keys())[idx]
+        data_numpy = np.load(BytesIO(self.data[key_item]))
         image = torch.from_numpy(data_numpy['image']).type(torch.float32)
         depth = torch.from_numpy(data_numpy['depth']).type(torch.float32)
         return image, depth
@@ -105,9 +99,9 @@ def loadZipToMem(zip_file):
     input_zip = ZipFile(zip_file)
     data = {name: input_zip.read(name) for name in input_zip.namelist()}
     nyu2_train = list(
-        (row.split(',') for row in (data['data/nyu2_train.csv']).decode("utf-8").split('\n') if len(row) > 0))
+        (row.split(',') for row in (data['dataset/nyu2_train.csv']).decode("utf-8").split('\n') if len(row) > 0))
     nyu2_test = list(
-        (row.split(',') for row in (data['data/nyu2_test.csv']).decode("utf-8").split('\n') if len(row) > 0))
+        (row.split(',') for row in (data['dataset/nyu2_test.csv']).decode("utf-8").split('\n') if len(row) > 0))
 
     # Debugging
     # if True: nyu2_train = nyu2_train[:100]
@@ -143,14 +137,8 @@ def get_NYU_dataset(zip_path, split, resolution='full', uncompressed=False):
         shuffle(data)
 
         if split == 'train':
-            data_train = data
             transform = train_transform(resolution)
-            dataset = depthDatasetMemory(data_train, split, transform=transform)
-
-        elif split == 'val':
-            data_val = data
-            transform = val_transform(resolution)
-            dataset = depthDatasetMemory(data_val, split, transform=transform)
+            return DepthDataset(data, split, transform=transform)
 
     elif split == 'test':
         if uncompressed:
