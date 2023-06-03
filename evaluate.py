@@ -7,8 +7,8 @@ import torchvision
 from tqdm import tqdm
 
 from config import SEED
-from data import datasets
-from data import transforms
+from dataset import datasets
+from dataset import transforms
 from metrics import AverageMeter, Result
 from model import loader
 
@@ -50,7 +50,7 @@ class Evaluater():
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.model = loader.load_model(args.model, args.weights_path)
+        self.model = loader.load_model(True)
         self.model.to(self.device)
 
         self.test_loader = datasets.get_dataloader(args.dataset,
@@ -76,6 +76,7 @@ class Evaluater():
     def evaluate(self):
         self.model.eval()
         average_meter = AverageMeter()
+
         for i, data in enumerate(tqdm(self.test_loader)):
             t0 = time.time()
             image, gt = data
