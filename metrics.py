@@ -33,7 +33,11 @@ class Result(object):
         self.delta1, self.delta2, self.delta3 = 0, 0, 0
         self.data_time, self.gpu_time = 0, 0
 
-    def update(self, irmse, imae, mse, rmse, rmse_log, mae, absrel, lg10, delta1, delta2, delta3, gpu_time, data_time):
+    def update(
+            self, irmse, imae, mse, rmse,
+            rmse_log, mae, absrel, lg10,
+            delta1, delta2, delta3, gpu_time, data_time
+    ):
         self.irmse, self.imae = irmse, imae
         self.mse, self.rmse, self.mae = mse, rmse, mae
         self.rmse_log = rmse_log
@@ -51,10 +55,10 @@ class Result(object):
         self.rmse_log = math.sqrt(torch.pow(log10(output) - log10(target), 2).mean())
         self.absrel = float((abs_diff / target).mean())
 
-        maxRatio = torch.max(output / target, target / output)
-        self.delta1 = float((maxRatio < 1.25).float().mean())
-        self.delta2 = float((maxRatio < 1.25 ** 2).float().mean())
-        self.delta3 = float((maxRatio < 1.25 ** 3).float().mean())
+        max_ratio = torch.max(output / target, target / output)
+        self.delta1 = float((max_ratio < 1.25).float().mean())
+        self.delta2 = float((max_ratio < 1.25 ** 2).float().mean())
+        self.delta3 = float((max_ratio < 1.25 ** 3).float().mean())
         self.data_time = 0
         self.gpu_time = 0
 
@@ -67,11 +71,24 @@ class Result(object):
 
 class AverageMeter(object):
     def __init__(self):
+        self.count = None
+        self.sum_irmse = None
+        self.sum_imae = None
+        self.sum_mse = None
+        self.sum_rmse = None
+        self.sum_mae = None
+        self.sum_rmse_log = None
+        self.sum_absrel = None
+        self.sum_lg10 = None
+        self.sum_delta1 = None
+        self.sum_delta2 = None
+        self.sum_delta3 = None
+        self.sum_data_time = None
+        self.sum_gpu_time = None
         self.reset()
 
     def reset(self):
         self.count = 0.0
-
         self.sum_irmse, self.sum_imae = 0, 0
         self.sum_mse, self.sum_rmse, self.sum_mae = 0, 0, 0
         self.sum_rmse_log = 0
@@ -81,7 +98,6 @@ class AverageMeter(object):
 
     def update(self, result, gpu_time, data_time, n=1):
         self.count += n
-
         self.sum_irmse += n * result.irmse
         self.sum_imae += n * result.imae
         self.sum_mse += n * result.mse
@@ -103,5 +119,6 @@ class AverageMeter(object):
             self.sum_mse / self.count, self.sum_rmse / self.count, self.sum_mae / self.count,
             self.sum_rmse_log / self.count, self.sum_absrel / self.count, self.sum_lg10 / self.count,
             self.sum_delta1 / self.count, self.sum_delta2 / self.count, self.sum_delta3 / self.count,
-            self.sum_gpu_time / self.count, self.sum_data_time / self.count)
+            self.sum_gpu_time / self.count, self.sum_data_time / self.count
+        )
         return avg

@@ -6,7 +6,7 @@ import torch.optim as optim
 from tqdm import tqdm
 
 from dataset import datasets
-from losses import Depth_Loss
+from losses import DepthLoss
 from metrics import AverageMeter, Result
 from model import loader
 from util.data import unpack_and_move
@@ -48,9 +48,9 @@ class Trainer:
         )
 
         if args.eval_mode == 'alhashim':
-            self.loss_func = Depth_Loss(0.1, 1, 1, maxDepth=self.maxDepth)
+            self.loss_func = DepthLoss(0.1, 1, 1, max_depth=self.maxDepth)
         else:
-            self.loss_func = Depth_Loss(1, 0, 0, maxDepth=self.maxDepth)
+            self.loss_func = DepthLoss(1, 0, 0, max_depth=self.maxDepth)
 
         # Load Checkpoint
         if args.load_checkpoint != '':

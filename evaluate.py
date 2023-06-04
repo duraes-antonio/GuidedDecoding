@@ -12,6 +12,7 @@ from model import loader
 from options.dataset_resolution import shape_by_resolution
 from util.data import unpack_and_move
 from util.image import save_image_results
+from util.log import print_metrics
 
 max_depths = {
     'nyu': 10.0,
@@ -123,16 +124,7 @@ class Evaluater:
         avg = average_meter.average()
         current_time = time.strftime('%H:%M', time.localtime())
         self.save_results(avg)
-        print('\n*\n'
-              'RMSE={average.rmse:.3f}\n'
-              'MAE={average.mae:.3f}\n'
-              'Delta1={average.delta1:.3f}\n'
-              'Delta2={average.delta2:.3f}\n'
-              'Delta3={average.delta3:.3f}\n'
-              'REL={average.absrel:.3f}\n'
-              'Lg10={average.lg10:.3f}\n'
-              't_GPU={time:.3f}\n'.format(
-            average=avg, time=avg.gpu_time))
+        print_metrics(avg)
 
     def save_results(self, average):
         results_file = os.path.join(self.result_dir, 'results.txt')
