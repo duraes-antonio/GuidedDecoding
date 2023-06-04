@@ -8,7 +8,6 @@ def set_all_lib_seed(seed: int, loader=None) -> None:
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     torch.manual_seed(seed)
-    torch.use_deterministic_algorithms(True)
     torch.cuda.manual_seed(seed)
     random.seed(seed)
     numpy.random.seed(seed)
