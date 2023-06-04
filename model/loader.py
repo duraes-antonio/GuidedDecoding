@@ -6,10 +6,10 @@ from options.model import Models
 
 
 def load_model(model: Models, load_weights=False):
-    if model == Models.UNet3Plus.name:
+    if model == Models.UNet3Plus:
         model = UNet_3Plus()
 
-    if model == Models.MTUnet.name:
+    if model == Models.MTUnet:
         model = MTUNet(1)
 
     if load_weights:

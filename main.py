@@ -50,10 +50,11 @@ def get_args():
 
     # Model
     parser.add_argument('--model',
-                        type=str,
+                        type=Models,
                         help='name of the model to be trained',
-                        choices=[Models.MTUnet.name, Models.UNet3Plus.name],
-                        default=Models.MTUnet.name)
+                        choices=list(Models),
+                        default=Models.MTUnet)
+
     parser.add_argument('--weights_path',
                         type=str,
                         default=None,
