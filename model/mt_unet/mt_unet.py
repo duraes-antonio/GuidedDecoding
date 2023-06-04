@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-
 
 import math
+
 import numpy as np
 import torch
 from torch import nn
@@ -469,7 +470,7 @@ class MTUNet(nn.Module):
         self.bottleneck = nn.Sequential(EAmodule(configs["bottleneck"]),
                                         EAmodule(configs["bottleneck"]))
         self.decoder = nn.ModuleList()
-        self.relu = nn.ReLU()
+        self.final_activation = nn.Mish()
 
         self.decoder_stem = DecoderStem()
         for i in range(len(configs["encoder"])):
@@ -503,7 +504,7 @@ class MTUNet(nn.Module):
 
         x = self.decoder_stem(x, features)
         x = self.SegmentationHead(x)
-        x = self.relu(x)
+        x = self.final_activation(x)
         return x
 
 
