@@ -3,6 +3,7 @@ import os
 
 from config import SEED
 from evaluate import Evaluater
+from options.model import Models
 from reproducibility import set_all_lib_seed
 from training import Trainer
 
@@ -51,7 +52,8 @@ def get_args():
     parser.add_argument('--model',
                         type=str,
                         help='name of the model to be trained',
-                        default='UpDepth')
+                        choices=[Models.MTUnet.name, Models.UNet3Plus.name],
+                        default=Models.MTUnet.name)
     parser.add_argument('--weights_path',
                         type=str,
                         default=None,
