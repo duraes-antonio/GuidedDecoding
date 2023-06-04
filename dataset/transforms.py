@@ -1,53 +1,60 @@
 import random
+from typing import TypedDict
 
 import numpy as np
 import torch
 from PIL import Image
+from PIL.Image import Image as PILImage
 from torchvision import transforms
 
 
+class PairDepth(TypedDict):
+    image: PILImage
+    depth: PILImage
+
+
 def _is_pil_image(img):
-    return isinstance(img, Image.Image)
+    return isinstance(img, PILImage)
 
 
-def _is_numpy_image(img):
+def _is_numpy_image(img) -> bool:
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
 
 
+def __validate_image_type__(image) -> None:
+    if not _is_pil_image(image):
+        raise TypeError('img should be PIL Image. Got {}'.format(type(image)))
+
+
+def __validate_pair_type__(pair: PairDepth) -> None:
+    __validate_image_type__(pair['depth'])
+    __validate_image_type__(pair['image'])
+
+
+def __flip_pair_random__(pair: PairDepth, flip_type) -> PairDepth:
+    __validate_pair_type__(pair)
+
+    image = pair['image']
+    depth = pair['depth']
+
+    if random.random() < 0.5:
+        image = image.transpose(flip_type)
+        depth = depth.transpose(flip_type)
+
+    return {
+        'image': image,
+        'depth': depth
+    }
+
+
 class RandomHorizontalFlip(object):
-    def __call__(self, sample):
-        image, depth = sample['image'], sample['depth']
-
-        if not _is_pil_image(image):
-            raise TypeError(
-                'img should be PIL Image. Got {}'.format(type(image)))
-        if not _is_pil_image(depth):
-            raise TypeError(
-                'img should be PIL Image. Got {}'.format(type(depth)))
-
-        if random.random() < 0.5:
-            image = image.transpose(Image.FLIP_LEFT_RIGHT)
-            depth = depth.transpose(Image.FLIP_LEFT_RIGHT)
-
-        return {'image': image, 'depth': depth}
+    def __call__(self, sample: PairDepth) -> PairDepth:
+        return __flip_pair_random__(sample, Image.FLIP_LEFT_RIGHT)
 
 
 class RandomVerticalFlip(object):
-    def __call__(self, sample):
-        image, depth = sample['image'], sample['depth']
-
-        if not _is_pil_image(image):
-            raise TypeError(
-                'img should be PIL Image. Got {}'.format(type(image)))
-        if not _is_pil_image(depth):
-            raise TypeError(
-                'img should be PIL Image. Got {}'.format(type(depth)))
-
-        if random.random() < 0.5:
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
-            depth = depth.transpose(Image.FLIP_TOP_BOTTOM)
-
-        return {'image': image, 'depth': depth}
+    def __call__(self, sample: PairDepth) -> PairDepth:
+        return __flip_pair_random__(sample, Image.FLIP_TOP_BOTTOM)
 
 
 class RandomChannelSwap(object):
@@ -56,12 +63,10 @@ class RandomChannelSwap(object):
         self.probability = probability
         self.indices = list(permutations(range(3), 3))
 
-    def __call__(self, sample):
+    def __call__(self, sample: PairDepth) -> PairDepth:
+        __validate_pair_type__(sample)
         image, depth = sample['image'], sample['depth']
-        if not _is_pil_image(image):
-            raise TypeError('img should be PIL Image. Got {}'.format(type(image)))
-        if not _is_pil_image(depth):
-            raise TypeError('img should be PIL Image. Got {}'.format(type(depth)))
+
         if random.random() < self.probability:
             image = np.asarray(image)
             image = Image.fromarray(image[..., list(self.indices[random.randint(0, len(self.indices) - 1)])])
@@ -69,11 +74,11 @@ class RandomChannelSwap(object):
 
 
 class ToTensor(object):
-    def __init__(self, test=False, maxDepth=1000.0):
+    def __init__(self, test=False, max_depth=1000.0):
         self.test = test
-        self.maxDepth = maxDepth
+        self.max_depth = max_depth
 
-    def __call__(self, sample):
+    def __call__(self, sample: PairDepth):
         image, depth = sample['image'], sample['depth']
         transformation = transforms.ToTensor()
 
@@ -92,8 +97,8 @@ class ToTensor(object):
             # For train use DepthNorm
             zero_mask = depth == 0.0
             image, depth = transformation(image), transformation(depth)
-            depth = torch.clamp(depth, self.maxDepth / 100.0, self.maxDepth)
-            depth = self.maxDepth / depth
+            depth = torch.clamp(depth, self.max_depth / 100.0, self.max_depth)
+            depth = self.max_depth / depth
             depth[:, zero_mask] = 0.0
 
         # print('Depth after, min: {} max: {}'.format(depth.min(), depth.max()))
@@ -111,7 +116,7 @@ class CenterCrop(object):
     def __init__(self, output_resolution):
         self.crop = transforms.CenterCrop(output_resolution)
 
-    def __call__(self, sample):
+    def __call__(self, sample: PairDepth) -> PairDepth:
         image, depth = sample['image'], sample['depth']
 
         if isinstance(image, np.ndarray):
@@ -132,7 +137,7 @@ class Resize(object):
     def __init__(self, output_resolution):
         self.resize = transforms.Resize(output_resolution)
 
-    def __call__(self, sample):
+    def __call__(self, sample: PairDepth) -> PairDepth:
         image, depth = sample['image'], sample['depth']
 
         if isinstance(image, np.ndarray):
@@ -154,7 +159,7 @@ class RandomRotation(object):
     def __init__(self, degrees):
         self.angle = degrees
 
-    def __call__(self, sample):
+    def __call__(self, sample: PairDepth) -> PairDepth:
         image, depth = sample['image'], sample['depth']
         angle = random.uniform(-self.angle, self.angle)
 
@@ -169,5 +174,5 @@ class RandomRotation(object):
         return {'image': image, 'depth': depth}
 
 
-def DepthNorm(depth, maxDepth=1000.0):
-    return maxDepth / depth
+def DepthNorm(depth, max_depth=1000.0):
+    return max_depth / depth
