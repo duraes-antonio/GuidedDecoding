@@ -9,16 +9,15 @@ from dataset import datasets
 from losses import Depth_Loss
 from metrics import AverageMeter, Result
 from model import loader
+from util.data import unpack_and_move
 
 max_depths = {
     'nyu_reduced': 10.0,
 }
 
 
-class Trainer():
+class Trainer:
     def __init__(self, args):
-        self.debug = True
-
         self.checkpoint_pth = args.save_checkpoint
         self.results_pth = args.save_results
 
@@ -38,13 +37,11 @@ class Trainer():
         # Initialize the dataset and the dataloader
         self.model = loader.load_model(args.model, False)
         self.model.to(self.device)
-        self.train_loader = datasets.get_dataloader(args.dataset,
-                                                    path=args.data_path,
-                                                    split='train',
-                                                    augmentation=args.eval_mode,
-                                                    batch_size=args.batch_size,
-                                                    resolution=args.resolution,
-                                                    workers=args.num_workers)
+        self.train_loader = datasets.get_dataloader(
+            args.dataset, path=args.data_path, split='train',
+            batch_size=args.batch_size, resolution=args.resolution,
+            workers=args.num_workers
+        )
         self.optimizer = optim.Adam(self.model.parameters(), args.learning_rate)
         self.lr_scheduler = optim.lr_scheduler.StepLR(
             self.optimizer, args.scheduler_step_size, gamma=0.1
@@ -61,7 +58,6 @@ class Trainer():
 
     def train(self):
         torch.cuda.empty_cache()
-        self.start_time = time.time()
 
         for self.epoch in range(self.epoch, self.max_epochs):
             current_time = time.strftime('%H:%M', time.localtime())
@@ -78,7 +74,7 @@ class Trainer():
 
         for i, data in enumerate(tqdm(self.train_loader)):
             t0 = time.time()
-            image, gt = self.unpack_and_move(data)
+            image, gt = unpack_and_move(self.device, data)
             self.optimizer.zero_grad()
             data_time = time.time() - t0
 
@@ -113,8 +109,7 @@ class Trainer():
         )
 
     def load_checkpoint(self, checkpoint_path):
-        checkpoint = torch.load(checkpoint_path,
-                                map_location=self.device)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
@@ -123,13 +118,14 @@ class Trainer():
     def save_checkpoint(self):
         # Save checkpoint for training
         checkpoint_dir = os.path.join(self.checkpoint_pth, 'checkpoint_{}.pth'.format(self.epoch))
-        torch.save({
+        to_save = {
             'epoch': self.epoch + 1,
             'val_losses': self.val_losses,
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'lr_scheduler': self.lr_scheduler.state_dict(),
-        }, checkpoint_dir)
+        }
+        torch.save(to_save, checkpoint_dir)
         current_time = time.strftime('%H:%M', time.localtime())
         print('{} - Model saved'.format(current_time))
 
@@ -153,18 +149,6 @@ class Trainer():
         depth = self.maxDepth / depth
         depth[zero_mask] = 0.0
         return depth
-
-    def unpack_and_move(self, data):
-        if isinstance(data, (tuple, list)):
-            image = data[0].to(self.device, non_blocking=True)
-            gt = data[1].to(self.device, non_blocking=True)
-            return image, gt
-        if isinstance(data, dict):
-            keys = data.keys()
-            image = data['image'].to(self.device, non_blocking=True)
-            gt = data['depth'].to(self.device, non_blocking=True)
-            return image, gt
-        print('Type not supported')
 
     def show_images(self, image, gt, pred):
         import matplotlib.pyplot as plt

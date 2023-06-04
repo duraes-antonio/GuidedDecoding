@@ -106,7 +106,7 @@ def train_transform(resolution: Tuple[int, int]):
         Resize(resolution),
         RandomHorizontalFlip(),
         RandomChannelSwap(0.5),
-        ToTensor(test=False, maxDepth=10.0)
+        ToTensor(test=False, max_depth=10.0)
     ])
     return transform
 
@@ -114,7 +114,7 @@ def train_transform(resolution: Tuple[int, int]):
 def val_transform(resolution):
     transform = transforms.Compose([
         Resize(resolution),
-        ToTensor(test=True, maxDepth=10.0)
+        ToTensor(test=True, max_depth=10.0)
     ])
     return transform
 

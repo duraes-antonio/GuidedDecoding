@@ -1,7 +1,6 @@
 import os
 import time
 
-import matplotlib.pyplot as plt
 import torch
 import torchvision
 from tqdm import tqdm
@@ -11,6 +10,8 @@ from dataset import transforms
 from metrics import AverageMeter, Result
 from model import loader
 from options.dataset_resolution import shape_by_resolution
+from util.data import unpack_and_move
+from util.image import save_image_results
 
 max_depths = {
     'nyu': 10.0,
@@ -28,7 +29,7 @@ crops = {
 }
 
 
-class Evaluater():
+class Evaluater:
     def __init__(self, args):
         self.debug = True
         self.dataset = args.dataset
@@ -41,34 +42,28 @@ class Evaluater():
         print('Maximum Depth of Dataset: {}'.format(self.maxDepth))
         self.crop = crops[args.dataset]
         self.eval_mode = args.eval_mode
-
         self.result_dir = args.save_results
+
         if not os.path.isdir(self.result_dir):
             os.mkdir(self.result_dir)
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-        self.model = loader.load_model(args.model, True)
+        self.model = loader.load_model(args.model, True, args.weights_path)
         self.model.to(self.device)
-        self.test_loader = datasets.get_dataloader(args.dataset,
-                                                   path=args.test_path,
-                                                   split='test',
-                                                   batch_size=1,
-                                                   augmentation=args.eval_mode,
-                                                   resolution=args.resolution,
-                                                   workers=args.num_workers)
+        self.test_loader = datasets.get_dataloader(
+            args.dataset, path=args.test_path, split='test',
+            batch_size=1, resolution=args.resolution, workers=args.num_workers
+        )
 
         self.downscale_image = torchvision.transforms.Resize(self.resolution)  # To Model resolution
-
-        self.to_tensor = transforms.ToTensor(test=True, maxDepth=self.maxDepth)
-
-        self.visualize_images = [0, 1, 2, 3, 4, 5,
-                                 100, 101, 102, 103, 104, 105,
-                                 200, 201, 202, 203, 204, 205,
-                                 300, 301, 302, 303, 304, 305,
-                                 400, 401, 402, 403, 404, 405,
-                                 500, 501, 502, 503, 504, 505,
-                                 600, 601, 602, 603, 604, 605]
+        self.to_tensor = transforms.ToTensor(test=True, max_depth=self.maxDepth)
+        self.visualize_images = [
+            0, 1, 2, 3, 4, 5, 100, 101, 102, 103,
+            104, 105, 200, 201, 202, 203, 204, 205, 300, 301,
+            302, 303, 304, 305, 400, 401, 402, 403, 404, 405,
+            500, 501, 502, 503, 504, 505, 600, 601, 602, 603,
+            604, 605
+        ]
 
     def evaluate(self):
         self.model.eval()
@@ -79,7 +74,7 @@ class Evaluater():
             image, gt = data
             packed_data = {'image': image[0], 'depth': gt[0]}
             data = self.to_tensor(packed_data)
-            image, gt = self.unpack_and_move(data)
+            image, gt = unpack_and_move(self.device, data)
             image = image.unsqueeze(0)
             gt = gt.unsqueeze(0)
 
@@ -109,7 +104,7 @@ class Evaluater():
                 prediction_flip = upscale_depth(prediction_flip)
 
                 if i in self.visualize_images:
-                    self.save_image_results(image, gt, prediction, i)
+                    save_image_results(image, gt, prediction, i, self.maxDepth, self.result_dir)
 
                 gt = gt[:, :, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
                 gt_flip = gt_flip[:, :, self.crop[0]:self.crop[1], self.crop[2]:self.crop[3]]
@@ -163,63 +158,4 @@ class Evaluater():
         depth = self.maxDepth / depth
         return depth
 
-    def unpack_and_move(self, data):
-        if isinstance(data, (tuple, list)):
-            image = data[0].to(self.device, non_blocking=True)
-            gt = data[1].to(self.device, non_blocking=True)
-            return image, gt
-        if isinstance(data, dict):
-            keys = data.keys()
-            image = data['image'].to(self.device, non_blocking=True)
-            gt = data['depth'].to(self.device, non_blocking=True)
-            return image, gt
-        print('Type not supported')
 
-    def save_image_results(self, image, gt, prediction, image_id):
-        img = image[0].permute(1, 2, 0).cpu()
-        gt = gt[0, 0].permute(0, 1).cpu()
-        prediction = prediction[0, 0].permute(0, 1).detach().cpu()
-        error_map = gt - prediction
-        vmax_error = self.maxDepth / 10.0
-        vmin_error = 0.0
-        cmap = 'viridis'
-
-        vmax = torch.max(gt[gt != 0.0])
-        vmin = torch.min(gt[gt != 0.0])
-
-        save_to_dir = os.path.join(self.result_dir, 'image_{}.png'.format(image_id))
-        fig = plt.figure(frameon=False)
-        ax = plt.Axes(fig, [0., 0., 1., 1.])
-        ax.set_axis_off()
-        fig.add_axes(ax)
-        ax.imshow(img)
-        fig.savefig(save_to_dir)
-        plt.clf()
-
-        save_to_dir = os.path.join(self.result_dir, 'errors_{}.png'.format(image_id))
-        fig = plt.figure(frameon=False)
-        ax = plt.Axes(fig, [0., 0., 1., 1.])
-        ax.set_axis_off()
-        fig.add_axes(ax)
-        errors = ax.imshow(error_map, vmin=vmin_error, vmax=vmax_error, cmap='Reds')
-        fig.colorbar(errors, ax=ax, shrink=0.8)
-        fig.savefig(save_to_dir)
-        plt.clf()
-
-        save_to_dir = os.path.join(self.result_dir, 'gt_{}.png'.format(image_id))
-        fig = plt.figure(frameon=False)
-        ax = plt.Axes(fig, [0., 0., 1., 1.])
-        ax.set_axis_off()
-        fig.add_axes(ax)
-        ax.imshow(gt, vmin=vmin, vmax=vmax, cmap=cmap)
-        fig.savefig(save_to_dir)
-        plt.clf()
-
-        save_to_dir = os.path.join(self.result_dir, 'depth_{}.png'.format(image_id))
-        fig = plt.figure(frameon=False)
-        ax = plt.Axes(fig, [0., 0., 1., 1.])
-        ax.set_axis_off()
-        fig.add_axes(ax)
-        ax.imshow(prediction, vmin=vmin, vmax=vmax, cmap=cmap)
-        fig.savefig(save_to_dir)
-        plt.clf()
