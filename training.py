@@ -36,7 +36,7 @@ class Trainer():
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # Initialize the dataset and the dataloader
-        self.model = loader.load_model()
+        self.model = loader.load_model(args.model, False)
         self.model.to(self.device)
         self.train_loader = datasets.get_dataloader(args.dataset,
                                                     path=args.data_path,

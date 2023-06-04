@@ -48,9 +48,8 @@ class Evaluater():
 
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.model = loader.load_model(True)
+        self.model = loader.load_model(args.model, True)
         self.model.to(self.device)
-
         self.test_loader = datasets.get_dataloader(args.dataset,
                                                    path=args.test_path,
                                                    split='test',
