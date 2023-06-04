@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader
 
 from config import SEED
 from dataset.nyu_reduced import get_NYU_dataset
+from options.dataset_resolution import Resolutions
 from reproducibility import set_seed_worker
 
 """
@@ -13,7 +14,7 @@ Preparation of dataloaders for Datasets
 def get_dataloader(dataset_name,
                    path,
                    split='train',
-                   resolution='full',
+                   resolution: Resolutions = Resolutions.Full,
                    augmentation='alhashim',
                    interpolation='linear',
                    batch_size=4,

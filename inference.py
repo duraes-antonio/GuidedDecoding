@@ -6,25 +6,22 @@ import matplotlib.pyplot as plt
 import tensorrt as trt
 import torch
 import torchvision
-from torch2trt import torch2trt
-
 from data import datasets
 from data import transforms
+from torch2trt import torch2trt
+
 from metrics import AverageMeter, Result
 from model import loader
+from options.dataset_resolution import shape_by_resolution, Resolutions
 
 max_depths = {
     'nyu': 10.0,
     'nyu_reduced': 10.0,
 }
-nyu_res = {
-    'full': (480, 640),
-    'half': (240, 320),
-    'mini': (224, 224)}
 
 resolutions = {
-    'nyu': nyu_res,
-    'nyu_reduced': nyu_res,
+    'nyu': shape_by_resolution,
+    'nyu_reduced': shape_by_resolution,
 }
 crops = {
     'nyu': [20, 460, 24, 616],
@@ -50,10 +47,10 @@ def get_args():
                         choices=['nyu', 'nyu_reduced'],
                         default='nyu_reduced')
     parser.add_argument('--resolution',
-                        type=str,
+                        type=Resolutions,
                         help='Resolution of the images for training',
-                        choices=['full', 'half'],
-                        default='half')
+                        choices=[Resolutions.Full, Resolutions.Half],
+                        default=Resolutions.Half)
 
     # Model
     parser.add_argument('--model',
@@ -79,10 +76,11 @@ def get_args():
 
 class Inference_Engine():
     def __init__(self, args):
+        args.resolution: Resolutions
         self.maxDepth = max_depths[args.dataset]
         self.res_dict = resolutions[args.dataset]
         self.resolution = self.res_dict[args.resolution]
-        self.resolution_keyword = args.resolution
+        self.resolution_keyword = args.resolution.value
         print('Resolution for Eval: {}'.format(self.resolution))
         print('Maximum Depth of Dataset: {}'.format(self.maxDepth))
         self.crop = crops[args.dataset]
@@ -108,7 +106,7 @@ class Inference_Engine():
                                                        uncompressed=True,
                                                        workers=args.num_workers)
 
-        if args.resolution == 'half':
+        if args.resolution == Resolutions.Half:
             self.upscale_depth = torchvision.transforms.Resize(self.res_dict['full'])  # To Full res
             self.downscale_image = torchvision.transforms.Resize(self.resolution)  # To Half res
 
@@ -204,7 +202,7 @@ class Inference_Engine():
 
             image_flip = torch.flip(image, [3])
             gt_flip = torch.flip(gt, [3])
-            if self.resolution_keyword == 'half':
+            if self.resolution_keyword == Resolutions.Half.value:
                 image = self.downscale_image(image)
                 image_flip = self.downscale_image(image_flip)
 
@@ -223,7 +221,7 @@ class Inference_Engine():
             torch.cuda.synchronize()
             gpu_time1 = time.time() - t1
 
-            if self.resolution_keyword == 'half':
+            if self.resolution_keyword == Resolutions.Half.value:
                 prediction = self.upscale_depth(prediction)
                 prediction_flip = self.upscale_depth(prediction_flip)
 

@@ -13,11 +13,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from dataset.transforms import Resize, RandomHorizontalFlip, RandomChannelSwap, ToTensor
-
-resolution_dict = {
-    'full': (480, 640),
-    'half': (240, 320),
-    'mini': (224, 224)}
+from options.dataset_resolution import shape_by_resolution, Resolutions
 
 
 class DepthDataset(Dataset):
@@ -49,10 +45,9 @@ class DepthDataset(Dataset):
 
 
 class NYU_Testset_Extracted(Dataset):
-    def __init__(self, root, resolution='full'):
+    def __init__(self, root, resolution=Resolutions.Full):
         self.root = root
-        self.resolution = resolution_dict[resolution]
-
+        self.resolution = shape_by_resolution[resolution]
         self.files = os.listdir(self.root)
 
     def __getitem__(self, index):
@@ -106,7 +101,7 @@ def loadZipToMem(zip_file):
     return data, nyu2_train, nyu2_test
 
 
-def train_transform(resolution):
+def train_transform(resolution: Tuple[int, int]):
     transform = transforms.Compose([
         Resize(resolution),
         RandomHorizontalFlip(),
@@ -124,15 +119,15 @@ def val_transform(resolution):
     return transform
 
 
-def get_NYU_dataset(zip_path, split, resolution='full', uncompressed=False):
-    resolution = resolution_dict[resolution]
+def get_NYU_dataset(zip_path, split, resolution: Resolutions, uncompressed=False):
+    final_size = shape_by_resolution[resolution]
 
     if split != 'test':
         data = read_nyu_csv(zip_path)
         shuffle(data)
 
         if split == 'train':
-            transform = train_transform(resolution)
+            transform = train_transform(final_size)
             return DepthDataset(data, split, transform=transform)
 
     elif split == 'test':

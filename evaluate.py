@@ -10,22 +10,22 @@ from dataset import datasets
 from dataset import transforms
 from metrics import AverageMeter, Result
 from model import loader
+from options.dataset_resolution import shape_by_resolution
 
 max_depths = {
     'nyu': 10.0,
     'nyu_reduced': 10.0,
 }
-nyu_res = {
-    'full': (480, 640),
-    'half': (240, 320),
-    'mini': (224, 224)}
 
 resolutions = {
-    'nyu': nyu_res,
-    'nyu_reduced': nyu_res, }
+    'nyu': shape_by_resolution,
+    'nyu_reduced': shape_by_resolution,
+}
+
 crops = {
     'nyu': [20, 460, 24, 616],
-    'nyu_reduced': [20, 460, 24, 616]}
+    'nyu_reduced': [20, 460, 24, 616]
+}
 
 
 class Evaluater():

@@ -3,6 +3,7 @@ import os
 
 from config import SEED
 from evaluate import Evaluater
+from options.dataset_resolution import Resolutions
 from options.model import Models
 from reproducibility import set_all_lib_seed
 from training import Trainer
@@ -38,10 +39,10 @@ def get_args():
                         choices=['nyu', 'nyu_reduced'],
                         default='nyu_reduced')
     parser.add_argument('--resolution',
-                        type=str,
+                        type=Resolutions,
                         help='Resolution of the images for training',
-                        choices=['full', 'half', 'mini'],
-                        default='half')
+                        choices=list(Resolutions),
+                        default=Resolutions.Mini)
     parser.add_argument('--eval_mode',
                         type=str,
                         help='Eval mode',
