@@ -94,7 +94,7 @@ class Inference_Engine:
                                                   args.resolution,
                                                   args.model)
 
-        self.device = torch.device('cuda:0')
+        self.device = torch.device('cuda')
 
         self.model = loader.load_model(args.model, args.weights_path)
         self.model = self.model.eval().cuda()

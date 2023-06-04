@@ -1,6 +1,6 @@
 from typing import Literal, List, Dict, Tuple, Union
 
-PyTorchDevice = Literal['cpu', 'cuda:0']
+PyTorchDevice = Literal['cpu', 'cuda']
 
 
 def unpack_and_move(device: PyTorchDevice, data: Union[List, Tuple, Dict]):

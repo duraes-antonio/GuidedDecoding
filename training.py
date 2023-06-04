@@ -32,7 +32,7 @@ class Trainer:
         self.max_epochs = args.num_epochs
         self.maxDepth = max_depths[args.dataset]
         print('Maximum Depth of Dataset: {}'.format(self.maxDepth))
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # Initialize the dataset and the dataloader
         self.model = loader.load_model(args.model, False)
