@@ -470,7 +470,7 @@ class MTUNet(nn.Module):
         self.bottleneck = nn.Sequential(EAmodule(configs["bottleneck"]),
                                         EAmodule(configs["bottleneck"]))
         self.decoder = nn.ModuleList()
-        self.final_activation = nn.Mish()
+        self.final_activation = nn.ELU()
 
         self.decoder_stem = DecoderStem()
         for i in range(len(configs["encoder"])):
