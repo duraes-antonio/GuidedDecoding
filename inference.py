@@ -5,9 +5,10 @@ import time
 import tensorrt as trt
 import torch
 import torchvision
-from data import transforms
 from torch2trt import torch2trt
 
+from config import DEVICE
+from data import transforms
 from dataset.datasets import get_dataloader
 from metrics import AverageMeter, Result
 from model import loader
@@ -94,8 +95,7 @@ class Inference_Engine:
                                                   args.resolution,
                                                   args.model)
 
-        self.device = torch.device('cuda')
-
+        self.device = DEVICE
         self.model = loader.load_model(args.model, args.weights_path)
         self.model = self.model.eval().cuda()
 

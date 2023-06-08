@@ -5,6 +5,7 @@ import torch
 import torchvision
 from tqdm import tqdm
 
+from config import DEVICE
 from dataset import datasets
 from dataset import transforms
 from metrics import AverageMeter, Result
@@ -48,7 +49,7 @@ class Evaluater:
         if not os.path.isdir(self.result_dir):
             os.mkdir(self.result_dir)
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = DEVICE
         self.model = loader.load_model(args.model, True, args.weights_path)
         self.model.to(self.device)
         self.test_loader = datasets.get_dataloader(
