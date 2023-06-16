@@ -3,7 +3,6 @@ import torch
 
 from model.Unets.NestedUnet import NestedUNet
 from model.mt_unet.mt_unet import MTUNet
-from model.mt_unet.mt_unet_w_efficientnet import MTUNetCustom
 from model.trans_unet.vit_seg_modeling import VisionTransformer, CONFIGS, TransUnetConfigType
 from model.unet_3_plus.unet_3_plus import UNet_3Plus
 from options.dataset_resolution import Resolutions, shape_by_resolution
@@ -21,9 +20,6 @@ def load_model(
 
     if model == Models.MTUnet:
         model = MTUNet(1)
-
-    if model == Models.MTUnetCustom:
-        model = MTUNetCustom(1)
 
     if model == Models.NestedUnet:
         model = NestedUNet(num_classes=1, input_channels=3, deep_supervision=False).cuda()
