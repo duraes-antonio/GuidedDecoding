@@ -59,8 +59,8 @@ def get_args():
 
     # TransUnetConfig
     parser.add_argument('--vit_config',
-                        type=Models,
-                        help='name of the model to be trained',
+                        type=TransUnetConfigType,
+                        help='Trans unet config name',
                         choices=list(TransUnetConfigType),
                         default=TransUnetConfigType.r50_vit_b16)
 
