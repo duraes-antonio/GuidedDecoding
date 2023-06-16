@@ -50,7 +50,10 @@ class Evaluater:
             os.mkdir(self.result_dir)
 
         self.device = DEVICE
-        self.model = loader.load_model(args.model, True, args.weights_path)
+        self.model = loader.load_model(
+            args.model, True, args.weights_path,
+            resolution=args.resolution, trans_unet_config=args.vit_config
+        )
         self.model.to(self.device)
         self.test_loader = datasets.get_dataloader(
             args.dataset, path=args.test_path, split='test',

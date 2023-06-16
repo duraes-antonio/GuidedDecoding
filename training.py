@@ -36,7 +36,10 @@ class Trainer:
         self.device = DEVICE
 
         # Initialize the dataset and the dataloader
-        self.model = loader.load_model(args.model, False)
+        self.model = loader.load_model(
+            args.model, False, resolution=args.resolution,
+            trans_unet_config=args.trans_unet_config
+        )
         self.model.to(self.device)
         self.train_loader = datasets.get_dataloader(
             args.dataset, path=args.data_path, split='train',

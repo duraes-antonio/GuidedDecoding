@@ -3,6 +3,7 @@ import os
 
 from config import SEED
 from evaluate import Evaluater
+from model.trans_unet.vit_seg_modeling import TransUnetConfigType
 from options.dataset_resolution import Resolutions
 from options.model import Models
 from reproducibility import set_all_lib_seed
@@ -55,6 +56,13 @@ def get_args():
                         help='name of the model to be trained',
                         choices=list(Models),
                         default=Models.MTUnet)
+
+    # TransUnetConfig
+    parser.add_argument('--vit_config',
+                        type=Models,
+                        help='name of the model to be trained',
+                        choices=list(TransUnetConfigType),
+                        default=TransUnetConfigType.r50_vit_b16)
 
     parser.add_argument('--weights_path',
                         type=str,
