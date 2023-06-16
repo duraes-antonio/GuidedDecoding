@@ -445,13 +445,13 @@ class VisionTransformer(nn.Module):
 
 
 class TransUnetConfigType(Enum):
-    vit_b16 = 'ViT-B_16',
-    vit_b32 = 'ViT-B_32',
-    vit_l16 = 'ViT-L_16',
-    vit_l32 = 'ViT-L_32',
-    vit_h14 = 'ViT-H_14',
-    r50_vit_b16 = 'R50-ViT-B_16',
-    r50_vit_l16 = 'R50-ViT-L_16',
+    vit_b16 = 'ViT-B_16'
+    vit_b32 = 'ViT-B_32'
+    vit_l16 = 'ViT-L_16'
+    vit_l32 = 'ViT-L_32'
+    vit_h14 = 'ViT-H_14'
+    r50_vit_b16 = 'R50-ViT-B_16'
+    r50_vit_l16 = 'R50-ViT-L_16'
 
     def __str__(self):
         return self.value
