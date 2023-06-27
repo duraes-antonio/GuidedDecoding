@@ -7,6 +7,7 @@ class Models(Enum):
     NestedUnet = 'nested-unet'
     UNet3Plus = 'unet3+'
     TransUnet = 'trans-unet'
+    TransUnetPlus = 'trans-unet++'
 
     def __str__(self):
         return self.value

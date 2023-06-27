@@ -4,6 +4,7 @@ import torch
 from model.Unets.NestedUnet import NestedUNet
 from model.mt_unet.mt_unet import MTUNet
 from model.trans_unet.vit_seg_modeling import VisionTransformer, CONFIGS, TransUnetConfigType
+from model.trans_unet_plus_plus.vit_seg_modeling import VisionTransformer2
 from model.unet_3_plus.unet_3_plus import UNet_3Plus
 from options.dataset_resolution import Resolutions, shape_by_resolution
 from options.model import Models
@@ -34,6 +35,18 @@ def load_model(
             config_vit.patches.grid = (
                 int(img_size / vit_patches_size), int(img_size / vit_patches_size))
         model = VisionTransformer(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
+        model.load_from(weights=np.load(config_vit.pretrained_path))
+
+    if model == Models.TransUnetPlus:
+        config_vit = CONFIGS[trans_unet_config.value]
+        img_size = max(shape_by_resolution[resolution])
+        config_vit.n_classes = 1
+        config_vit.n_skip = 3
+        vit_patches_size = 16
+        if trans_unet_config.value.find('R50') != -1:
+            config_vit.patches.grid = (
+                int(img_size / vit_patches_size), int(img_size / vit_patches_size))
+        model = VisionTransformer2(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
         model.load_from(weights=np.load(config_vit.pretrained_path))
 
     if load_weights:
