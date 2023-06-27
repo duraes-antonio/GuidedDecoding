@@ -360,7 +360,14 @@ class DecoderCup(nn.Module):
         else:
             skip_channels = [0, 0, 0, 0]
 
-        # 1024 -> 256, 512 -> 128, 192 -> 64, 64 -> 16
+        """
+        DecoderBlock
+        in      skip
+        1024    512     -> 256
+        512     256     -> 128
+        192     64      -> 64
+        64      0       -> 16
+        """
         blocks = [
             DecoderBlock(in_ch, out_ch, sk_ch) for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
         ]
@@ -379,6 +386,15 @@ class DecoderCup(nn.Module):
         # x:        (BS, 512, 14, 14)
         # features: (BS, 512, 28, 28), (BS, 256, 56, 56), (BS, 64, 112, 112)
         # blocks:   (1024, 256), (512, 128), (192, 64), (64, 16)
+
+        """
+        DecoderBlock
+        expect  in              skip            out
+        1024    512, 14, 14     512, 28, 28     256, 28, 28
+        512     256, 28, 28     256, 56, 56     128, 56, 56
+        192     128, 56, 56     64, 112, 112    64, 112, 112
+        64      64, 112, 112    None            16, 224, 224
+        """
         for i, decoder_block in enumerate(self.blocks):
             if features is not None:
                 skip = features[i] if (i < self.config.n_skip) else None
