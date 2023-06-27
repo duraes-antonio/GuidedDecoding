@@ -13,16 +13,15 @@ from typing import Literal, Dict
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from ml_collections import ConfigDict
 from scipy import ndimage
 from torch.nn import Dropout, Softmax, Linear, Conv2d, LayerNorm
 from torch.nn.modules.utils import _pair
 
-from vit_seg_modeling_resnet_skip import ResNetV2
-from . import vit_seg_configs as configs
-from ..unet_3_plus.init_weights import init_weights
-from ..unet_3_plus.layers import unetConv2
+from model.trans_unet_plus_plus import vit_seg_configs as configs
+from model.trans_unet_plus_plus.vit_seg_modeling_resnet_skip import ResNetV2
+from model.unet_3_plus.init_weights import init_weights
+from model.unet_3_plus.layers import unetConv2
 
 logger = logging.getLogger(__name__)
 
@@ -600,11 +599,12 @@ class UNet3Plus(nn.Module):
         d4_d1 = self.d4_d1_conv(self.d4_d1_up(d4))
         e5_d1 = self.e5_d1_conv(self.e5_d1_up(e5))
 
-        # d1 -> 320 * 320*UpChannels
+        # d1 -> 320 * 320 * UpChannels
         d1 = self.d1_conv(torch.cat((e1_d1, d2_d1, d3_d1, d4_d1, e5_d1), 1))
 
-        d1 = self.output_conv(d1)  # d1 -> 320 * 320*n_classes
-        return F.relu(d1)
+        d1 = self.output_conv(d1)  # d1 -> 320 * 320 * n_classes
+        return d1
+        # return F.relu(d1)
 
 
 class VisionTransformer2(nn.Module):
