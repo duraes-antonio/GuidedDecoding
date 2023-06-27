@@ -332,17 +332,27 @@ class DecoderCup(nn.Module):
         self.config = config
         head_channels = 512
         self.conv_more = Conv2dReLU(
+            # 768
             config.hidden_size,
+
+            # 512
             head_channels,
             kernel_size=3,
             padding=1,
             use_batchnorm=True,
         )
         decoder_channels = config.decoder_channels
+
+        # 512, 256, 128, 64
         in_channels = [head_channels] + list(decoder_channels[:-1])
+
+        # 256, 128, 64, 16
         out_channels = decoder_channels
 
+        # config.n_skip = 3
         if self.config.n_skip != 0:
+
+            # config.skip_channels = [512, 256, 64, 16]
             skip_channels = self.config.skip_channels
             for i in range(4 - self.config.n_skip):  # re-select the skip channels according to n_skip
                 skip_channels[3 - i] = 0
@@ -350,17 +360,25 @@ class DecoderCup(nn.Module):
         else:
             skip_channels = [0, 0, 0, 0]
 
+        # 1024 -> 256, 512 -> 128, 192 -> 64, 64 -> 16
         blocks = [
             DecoderBlock(in_ch, out_ch, sk_ch) for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
         ]
         self.blocks = nn.ModuleList(blocks)
 
+    # features = [(12, 512, 28, 28), (12, 256, 56, 56), (12, 64, 112, 112)]
     def forward(self, hidden_states, features=None):
         B, n_patch, hidden = hidden_states.size()  # reshape from (B, n_patch, hidden) to (B, h, w, hidden)
         h, w = int(np.sqrt(n_patch)), int(np.sqrt(n_patch))
         x = hidden_states.permute(0, 2, 1)
         x = x.contiguous().view(B, hidden, h, w)
+
+        # (12, 768, 14, 14) -> (12, 512, 14, 14)
         x = self.conv_more(x)
+
+        # x:        (BS, 512, 14, 14)
+        # features: (BS, 512, 28, 28), (BS, 256, 56, 56), (BS, 64, 112, 112)
+        # blocks:   (1024, 256), (512, 128), (192, 64), (64, 16)
         for i, decoder_block in enumerate(self.blocks):
             if features is not None:
                 skip = features[i] if (i < self.config.n_skip) else None
