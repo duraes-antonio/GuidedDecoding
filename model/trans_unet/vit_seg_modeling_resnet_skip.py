@@ -4,6 +4,7 @@ from os.path import join as pjoin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 
 def np2th(weights, conv=False):
@@ -142,19 +143,24 @@ class ResNetV2(nn.Module):
         ]))
 
     def forward(self, x):
-        features = []
-        b, c, in_size, _ = x.size()
+        batch_size, channels, in_size, x_width = x.size()
         x = self.root(x)
-        features.append(x)
+        features = [x]
+        count_blocks = len(self.body)
         x = nn.MaxPool2d(kernel_size=3, stride=2, padding=0)(x)
-        for i in range(len(self.body) - 1):
-            x = self.body[i](x)
+
+        for i in range(count_blocks - 1):
+            block = self.body[i]
+            x: Tensor = block(x)
             right_size = int(in_size / 4 / (i + 1))
-            if x.size()[2] != right_size:
-                pad = right_size - x.size()[2]
-                assert pad < 3 and pad > 0, "x {} should {}".format(x.size(), right_size)
-                feat = torch.zeros((b, x.size()[1], right_size, right_size), device=x.device)
-                feat[:, :, 0:x.size()[2], 0:x.size()[3]] = x[:]
+            _, x_channels, x_height, x_width = x.size()
+
+            if x_height != right_size:
+                pad = right_size - x_height
+                assert 3 > pad > 0, "x {} should {}".format(x.size(), right_size)
+                feat = torch.zeros((batch_size, x_channels, right_size, right_size), device=x.device)
+                feat[:, :, 0:x_height, 0:x_width] = x[:]
+
             else:
                 feat = x
             features.append(feat)
