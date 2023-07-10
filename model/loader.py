@@ -25,7 +25,7 @@ def load_model(
         model = MTUNet(1)
     
     if model == Models.TransFuse:
-      model = TransFuse_L_384(pretrained=True).cuda()
+      model = TransFuse_L(pretrained=True).cuda()
 
     if model == Models.NestedUnet:
         model = NestedUNet(num_classes=1, input_channels=3, deep_supervision=False).cuda()
