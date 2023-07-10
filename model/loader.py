@@ -7,6 +7,7 @@ from model.trans_unet.vit_seg_modeling import VisionTransformer, CONFIGS, TransU
 from model.trans_unet_3_skips.vit_seg_modeling import VisionTransformerSkips3
 from model.trans_unet_plus_plus.vit_seg_modeling import VisionTransformer2
 from model.unet_3_plus.unet_3_plus import UNet_3Plus
+from model.trans_fuse.TransFuse import TransFuse_S, TransFuse_L, TransFuse_L_384
 from options.dataset_resolution import Resolutions, shape_by_resolution
 from options.model import Models
 
@@ -22,6 +23,9 @@ def load_model(
 
     if model == Models.MTUnet:
         model = MTUNet(1)
+    
+    if model == Models.TransFuse:
+      model = TransFuse_L_384(pretrained=True).cuda()
 
     if model == Models.NestedUnet:
         model = NestedUNet(num_classes=1, input_channels=3, deep_supervision=False).cuda()
@@ -65,6 +69,7 @@ def load_model(
         print('\nVisionTransformer (All Decoder)\n')
 
     if load_weights:
-        model.load_state_dict(torch.load(path_weights))
+        saved = torch.load(path_weights)
+        model.load_state_dict(saved['model'])
 
     return model
