@@ -83,7 +83,7 @@ class Trainer:
             data_time = time.time() - t0
 
             t0 = time.time()
-            prediction = self.model(image)
+            _, _, prediction = self.model(image)
             gpu_time = time.time() - t0
 
             loss_value = self.loss_func(prediction, gt)
