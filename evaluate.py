@@ -54,6 +54,8 @@ class Evaluater:
             args.model, True, args.weights_path,
             resolution=args.resolution, trans_unet_config=args.vit_config
         )
+
+
         self.model.to(self.device)
         self.test_loader = datasets.get_dataloader(
             args.dataset, path=args.test_path, split='test',
@@ -94,10 +96,10 @@ class Evaluater:
 
             t0 = time.time()
 
-            inv_prediction = self.model(image)
+            _, _, inv_prediction = self.model(image)
             prediction = self.inverse_depth_norm(inv_prediction)
 
-            inv_prediction_flip = self.model(image_flip)
+            _, _, inv_prediction_flip = self.model(image_flip)
             prediction_flip = self.inverse_depth_norm(inv_prediction_flip)
 
             gpu_time = time.time() - t0
@@ -153,5 +155,3 @@ class Evaluater:
         depth = torch.clamp(depth, self.maxDepth / 100, self.maxDepth)
         depth = self.maxDepth / depth
         return depth
-
-
