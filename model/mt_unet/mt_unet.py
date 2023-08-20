@@ -93,7 +93,6 @@ class U_decoder(nn.Module):
         self.res3 = DoubleConv(128, 64)
 
     def forward(self, x, feature):
-
         x = self.trans1(x)  # (56, 56, 256)
         x = torch.cat((feature[2], x), dim=1)
         x = self.res1(x)  # (56, 56, 256)
@@ -123,7 +122,7 @@ class MEAttention(nn.Module):
         B, N, C = x.shape
         x = self.query_liner(x)
         x = x.view(B, N, self.num_heads, -1).permute(0, 2, 1,
-                                                     3)  #(1, 32, 225, 32)
+                                                     3)  # (1, 32, 225, 32)
 
         attn = self.linear_0(x)
 
@@ -177,7 +176,7 @@ class Attention(nn.Module):
             # col attention  (single head attention)
             query_layer_y = mixed_query_layer.permute(0, 2, 1,
                                                       3).contiguous().view(
-                                                          b * w, h, -1)
+                b * w, h, -1)
             key_layer_y = mixed_key_layer.permute(
                 0, 2, 1, 3).contiguous().view(b * w, h, -1).transpose(-1, -2)
             attention_scores_y = torch.matmul(query_layer_y,
@@ -211,7 +210,7 @@ class Attention(nn.Module):
             context_layer = context_layer.permute(0, 1, 2, 4, 3,
                                                   5).contiguous()
             new_context_layer_shape = context_layer.size()[:-2] + (
-                self.all_head_size, )
+                self.all_head_size,)
             context_layer = context_layer.view(*new_context_layer_shape)
             attention_output = self.out(context_layer)
 
@@ -233,8 +232,8 @@ class WinAttention(nn.Module):
             new_x = torch.zeros((b, c, right_size, right_size))
             new_x[:, :, 0:x.shape[2], 0:x.shape[3]] = x[:]
             new_x[:, :, x.shape[2]:,
-                  x.shape[3]:] = x[:, :, (x.shape[2] - right_size):,
-                                   (x.shape[3] - right_size):]
+            x.shape[3]:] = x[:, :, (x.shape[2] - right_size):,
+                           (x.shape[3] - right_size):]
             x = new_x
             b, c, h, w = x.shape
         x = x.view(b, c, h // self.window_size, self.window_size,
@@ -281,9 +280,9 @@ class GaussianTrans(nn.Module):
                 atten_x = atten_x_full[:, r, c, :]  # (b, w)
                 atten_y = atten_y_full[:, c, r, :]  # (b, h)
 
-                dis_x = torch.tensor([(h - c)**2 for h in range(x.shape[2])
+                dis_x = torch.tensor([(h - c) ** 2 for h in range(x.shape[2])
                                       ]).cuda()  # (b, w)
-                dis_y = torch.tensor([(w - r)**2 for w in range(x.shape[1])
+                dis_y = torch.tensor([(w - r) ** 2 for w in range(x.shape[1])
                                       ]).cuda()  # (b, h)
 
                 dis_x = -(self.shift * dis_x + self.bias).cuda()
@@ -306,8 +305,8 @@ class CSAttention(nn.Module):
         self.dlightconv = DlightConv(dim, configs)
         self.global_atten = Attention(dim, configs, axial=True)
         self.gaussiantrans = GaussianTrans()
-        #self.conv = nn.Conv2d(dim, dim, 3, padding=1)
-        #self.maxpool = nn.MaxPool2d(2)
+        # self.conv = nn.Conv2d(dim, dim, 3, padding=1)
+        # self.maxpool = nn.MaxPool2d(2)
         self.up = nn.UpsamplingBilinear2d(scale_factor=4)
         self.queeze = nn.Conv2d(2 * dim, dim, 1)
 
@@ -381,17 +380,16 @@ class Stem(nn.Module):
     def __init__(self):
         super(Stem, self).__init__()
         self.model = U_encoder()
-        self.trans_dim = ConvBNReLU(256, 256, 1, 1, 0)  #out_dim, model_dim
+        self.trans_dim = ConvBNReLU(256, 256, 1, 1, 0)  # out_dim, model_dim
         self.position_embedding = nn.Parameter(torch.zeros((1, 784, 256)))
 
     def forward(self, x):
-
         x, features = self.model(x)  # (1, 512, 28, 28)
         x = self.trans_dim(x)  # (B, C, H, W) (1, 256, 28, 28)
         x = x.flatten(2)  # (B, H, N)  (1, 256, 28*28)
-        x = x.transpose(-2, -1)  #  (B, N, H)
+        x = x.transpose(-2, -1)  # (B, N, H)
         x = x + self.position_embedding
-        return x, features  #(B, N, H)
+        return x, features  # (B, N, H)
 
 
 class encoder_block(nn.Module):
@@ -463,14 +461,13 @@ class decoder_block(nn.Module):
 
 
 class MTUNet(nn.Module):
-    def __init__(self, out_ch=1):
+    def __init__(self, out_ch=4):
         super(MTUNet, self).__init__()
         self.stem = Stem()
         self.encoder = nn.ModuleList()
         self.bottleneck = nn.Sequential(EAmodule(configs["bottleneck"]),
                                         EAmodule(configs["bottleneck"]))
         self.decoder = nn.ModuleList()
-        self.final_activation = nn.ELU()
 
         self.decoder_stem = DecoderStem()
         for i in range(len(configs["encoder"])):
@@ -480,17 +477,18 @@ class MTUNet(nn.Module):
             dim = configs["decoder"][i]
             self.decoder.append(decoder_block(dim, False))
         self.decoder.append(decoder_block(configs["decoder"][-1], True))
-        self.SegmentationHead = nn.Conv2d(64, 1, 1)
+        self.SegmentationHead = nn.Conv2d(64, out_ch, 1)
+        self.relu = nn.ReLU(True)
 
     def forward(self, x):
         if x.size()[1] == 1:
             x = x.repeat(1, 3, 1, 1)
-        x, features = self.stem(x)  #(B, N, C) (1, 196, 256)
+        x, features = self.stem(x)  # (B, N, C) (1, 196, 256)
         skips = []
         for i in range(len(self.encoder)):
             x, skip = self.encoder[i](x)
             skips.append(skip)
-            B, C, H, W = x.shape  #  (1, 512, 8, 8)
+            B, C, H, W = x.shape  # (1, 512, 8, 8)
             x = x.permute(0, 2, 3, 1).contiguous().view(B, -1, C)  # (B, N, C)
         x = self.bottleneck(x)  # (1, 25, 1024)
         B, N, C = x.shape
@@ -504,8 +502,7 @@ class MTUNet(nn.Module):
 
         x = self.decoder_stem(x, features)
         x = self.SegmentationHead(x)
-        x = self.final_activation(x)
-        return x
+        return self.relu(x)
 
 
 configs = {

@@ -319,12 +319,10 @@ class DecoderBlock(nn.Module):
             out_channels,
             skip_channels=0,
             use_batchnorm=True,
-            n_concat_tensors=0
     ):
         super().__init__()
-        sum_channels = (n_concat_tensors + 1) * in_channels
         self.conv1 = Conv2dReLU(
-            sum_channels + skip_channels,
+            in_channels + skip_channels,
             out_channels,
             kernel_size=3,
             padding=1,
@@ -339,17 +337,19 @@ class DecoderBlock(nn.Module):
         )
         self.up = nn.UpsamplingBilinear2d(scale_factor=2)
 
-    def forward(self, x, skip=None, to_concat_tensors=None):
+    def forward(self, x, skip=None):
         x = self.up(x)
-        to_concat = []
+        concatenated = None
 
         if skip is not None:
-            to_concat.append(skip)
+            concatenated = torch.cat([x, skip], dim=1)
 
-        x = torch.cat([x] + to_concat + to_concat_tensors, dim=1)
-        x = self.conv1(x)
+        if concatenated is not None:
+            x = self.conv1(concatenated)
+        else:
+            x = self.conv1(x)
         x = self.conv2(x)
-        return x
+        return x, concatenated
 
 
 class SegmentationHead(nn.Sequential):
@@ -402,45 +402,8 @@ class DecoderCup(nn.Module):
         192     64      -> 64
         64      0       -> 16
         """
-        self.conv_by_origin_target_channels: Dict[Tuple[int, int], nn.Sequential] = {
-            (1024, 256):
-                Conv2dReLUWithUpSampling(1024, 256, kernel_size=3, padding=1, use_batchnorm=True, up_factor=1),
-            (1024, 128): nn.Sequential(
-                Conv2dReLU(1024, 128, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=4)
-            ),
-            (1024, 64): nn.Sequential(
-                Conv2dReLU(1024, 64, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=8)
-            ),
-            (512, 128): nn.Sequential(
-                Conv2dReLU(512, 128, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=8)
-            ),
-            (512, 64): nn.Sequential(
-                Conv2dReLU(512, 64, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=16)
-            ),
-            (256, 64): nn.Sequential(
-                Conv2dReLU(256, 64, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=8)
-            ),
-        }
-        self.channels_to_concat_by_channel: Dict[int, List[int]] = {
-            512: [],
-            256: [1024],
-            128: [1024, 512],
-            64: [1024, 512, 256]
-        }
-        self.tensor_by_channel_number: Dict[int, Tensor] = dict()
         blocks = [
-            DecoderBlock(
-                in_ch,
-                out_ch,
-                sk_ch,
-                n_concat_tensors=len(self.channels_to_concat_by_channel[in_ch])
-            )
-            for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
+            DecoderBlock(in_ch, out_ch, sk_ch) for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
         ]
         self.blocks = nn.ModuleList(blocks)
 
@@ -455,6 +418,36 @@ class DecoderCup(nn.Module):
         x = self.conv_more(x)
 
         # blocks:   (1024, 256), (512, 128), (192, 64), (64, 16)
+        tensor_by_channel_number: Dict[int, Tensor] = dict()
+        conv_by_origin_target_channels: Dict[Tuple[int, int], nn.Sequential] = {
+            (1024, 256):
+                Conv2dReLUWithUpSampling(1024, 256, kernel_size=3, padding=1, use_batchnorm=True, up_factor=1),
+            (1024, 128): nn.Sequential(
+                Conv2dReLU(1024, 128, kernel_size=3, padding=1, use_batchnorm=True),
+                nn.UpsamplingBilinear2d(scale_factor=2)
+            ),
+            (1024, 64): nn.Sequential(
+                Conv2dReLU(1024, 64, kernel_size=3, padding=1, use_batchnorm=True),
+                nn.UpsamplingBilinear2d(scale_factor=4)
+            ),
+            (512, 128): nn.Sequential(
+                Conv2dReLU(512, 128, kernel_size=3, padding=1, use_batchnorm=True),
+                nn.UpsamplingBilinear2d(scale_factor=4)
+            ),
+            (512, 64): nn.Sequential(
+                Conv2dReLU(512, 64, kernel_size=3, padding=1, use_batchnorm=True),
+                nn.UpsamplingBilinear2d(scale_factor=8)
+            ),
+            (256, 64): nn.Sequential(
+                Conv2dReLU(256, 64, kernel_size=3, padding=1, use_batchnorm=True),
+                nn.UpsamplingBilinear2d(scale_factor=4)
+            ),
+        }
+        channels_to_concat_by_channel: Dict[int, List[int]] = {
+            256: [1024],
+            128: [1024, 512],
+            64: [1024, 512, 256]
+        }
 
         """
         x (initial):  (BS, 512, 14, 14)
@@ -469,32 +462,36 @@ class DecoderCup(nn.Module):
         """
         for i, decoder_block in enumerate(self.blocks):
             n_channels = list(x.size())[1]
-            self.tensor_by_channel_number[n_channels] = x
+            tensor_by_channel_number[n_channels] = x
+
+            if n_channels in channels_to_concat_by_channel:
+                channels_to_concat = channels_to_concat_by_channel[n_channels]
+                to_concat_tensors = []
+
+                for channel_origin in channels_to_concat:
+                    conv_to_apply = conv_by_origin_target_channels[(channel_origin, n_channels)]
+                    tensor_to_map = tensor_by_channel_number[channel_origin]
+                    fixed_tensor = conv_to_apply(tensor_to_map)
+                    to_concat_tensors.append(fixed_tensor)
+                x = torch.cat([x] + to_concat_tensors, dim=1)
+                sum_channels = (len(to_concat_tensors) + 1) * n_channels
+                x = Conv2dReLU(sum_channels, n_channels, kernel_size=3, padding=1, use_batchnorm=True)(x)
 
             if features is not None:
                 skip = features[i] if (i < self.config.n_skip) else None
             else:
                 skip = None
+            x, concatenated = decoder_block(x, skip=skip)
+            n_channels = list(concatenated.size())[1] if concatenated is not None else 0
 
-            to_concat_tensors = []
-
-            if self.channels_to_concat_by_channel[n_channels]:
-                channels_to_concat = self.channels_to_concat_by_channel[n_channels]
-
-                for channel_origin in channels_to_concat:
-                    conv_to_apply = self.conv_by_origin_target_channels[(channel_origin, n_channels)]
-                    tensor_to_map = self.tensor_by_channel_number[channel_origin]
-                    fixed_tensor = conv_to_apply(tensor_to_map)
-                    to_concat_tensors.append(fixed_tensor)
-
-            x = decoder_block(x, skip=skip, to_concat_tensors=to_concat_tensors)
-
+            if n_channels > 512:
+                tensor_by_channel_number[n_channels] = concatenated
         return x
 
 
-class VisionTransformerAllDecoder(nn.Module):
+class VisionTransformerPlus(nn.Module):
     def __init__(self, config, img_size=224, num_classes=21843, zero_head=False, vis=False):
-        super(VisionTransformerAllDecoder, self).__init__()
+        super(VisionTransformerPlus, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier

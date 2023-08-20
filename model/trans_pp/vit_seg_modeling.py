@@ -8,7 +8,7 @@ import logging
 import math
 from enum import Enum
 from os.path import join as pjoin
-from typing import Literal, Dict, List, Tuple
+from typing import Literal, Dict
 
 import numpy as np
 import torch
@@ -16,7 +16,8 @@ import torch.nn as nn
 from ml_collections import ConfigDict
 from scipy import ndimage
 from torch import Tensor
-from torch.nn import Dropout, Softmax, Linear, Conv2d, LayerNorm
+from torch.nn import Dropout, Softmax, Linear, Conv2d, LayerNorm, Sequential
+from torch.nn import functional as F
 from torch.nn.modules.utils import _pair
 
 from . import vit_seg_configs as configs
@@ -277,39 +278,12 @@ class Conv2dReLU(nn.Sequential):
             stride=stride,
             padding=padding,
             bias=not (use_batchnorm),
-            device='cuda'
         )
         relu = nn.ReLU(inplace=True)
 
-        bn = nn.BatchNorm2d(out_channels, device='cuda')
+        bn = nn.BatchNorm2d(out_channels)
 
         super(Conv2dReLU, self).__init__(conv, bn, relu)
-
-
-class Conv2dReLUWithUpSampling(nn.Sequential):
-    def __init__(
-            self,
-            in_channels,
-            out_channels,
-            kernel_size,
-            padding=0,
-            stride=1,
-            use_batchnorm=True,
-            up_factor=1
-    ):
-        conv = nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            stride=stride,
-            padding=padding,
-            bias=not (use_batchnorm),
-            device='cuda'
-        )
-        relu = nn.ReLU(inplace=True)
-        bn = nn.BatchNorm2d(out_channels, device='cuda')
-        up = nn.UpsamplingBilinear2d(scale_factor=up_factor)
-        super(Conv2dReLUWithUpSampling, self).__init__(conv, bn, relu, up)
 
 
 class DecoderBlock(nn.Module):
@@ -319,12 +293,10 @@ class DecoderBlock(nn.Module):
             out_channels,
             skip_channels=0,
             use_batchnorm=True,
-            n_concat_tensors=0
     ):
         super().__init__()
-        sum_channels = (n_concat_tensors + 1) * in_channels
         self.conv1 = Conv2dReLU(
-            sum_channels + skip_channels,
+            in_channels + skip_channels,
             out_channels,
             kernel_size=3,
             padding=1,
@@ -339,14 +311,10 @@ class DecoderBlock(nn.Module):
         )
         self.up = nn.UpsamplingBilinear2d(scale_factor=2)
 
-    def forward(self, x, skip=None, to_concat_tensors=None):
+    def forward(self, x, skip=None):
         x = self.up(x)
-        to_concat = []
-
         if skip is not None:
-            to_concat.append(skip)
-
-        x = torch.cat([x] + to_concat + to_concat_tensors, dim=1)
+            x = torch.cat([x, skip], dim=1)
         x = self.conv1(x)
         x = self.conv2(x)
         return x
@@ -360,28 +328,90 @@ class SegmentationHead(nn.Sequential):
         super().__init__(conv2d, upsampling)
 
 
+class PSPModule(nn.Module):
+    def __init__(self, features, out_features=512, sizes=(4, 8, 16, 32)):
+        super().__init__()
+        self.stages = []
+        self.stages = nn.ModuleList([self.__make_stage__(features, size) for size in sizes])
+        self.bottleneck = nn.Conv2d(features * (len(sizes) + 1), out_features, kernel_size=1)
+        self.relu = nn.ReLU()
+
+    @staticmethod
+    def __make_stage__(features, size):
+        prior = nn.AdaptiveAvgPool2d(output_size=(size, size))
+        conv = nn.Conv2d(features, features, kernel_size=1, bias=False)
+        return nn.Sequential(prior, conv)
+
+    def forward(self, feats):
+        h, w = feats.size(2), feats.size(3)
+        priors = [F.upsample(input=stage(feats), size=(h, w), mode='bilinear') for stage in self.stages] + [feats]
+        bottle = self.bottleneck(torch.cat(priors, 1))
+        return self.relu(bottle)
+
+
+class PSPUpsample(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.PReLU()
+        )
+
+    def forward(self, x):
+        h, w = 2 * x.size(2), 2 * x.size(3)
+        p = F.upsample(input=x, size=(h, w), mode='bilinear')
+        return self.conv(p)
+
+
+class CustomPSPNet(nn.Module):
+    def __init__(self, n_classes=1, sizes=(4, 16, 32, 64), psp_size=2048):
+        super().__init__()
+        self.psp = PSPModule(psp_size, 1024, sizes)
+        self.drop_1 = nn.Dropout2d(p=0.3)
+
+        self.up_1 = PSPUpsample(1024, 256)
+        self.up_2 = PSPUpsample(256, 64)
+        self.up_3 = PSPUpsample(64, 64)
+
+        self.drop_2 = nn.Dropout2d(p=0.15)
+        self.final = nn.Sequential(
+            nn.Conv2d(64, n_classes, kernel_size=1),
+            nn.ReLU(),
+        )
+
+    def forward(self, features: Tensor):
+        p = self.psp(features)
+        p = self.drop_1(p)
+
+        p = self.up_1(p)
+        p = self.drop_2(p)
+
+        p = self.up_2(p)
+        p = self.drop_2(p)
+
+        p = self.up_3(p)
+        p = self.drop_2(p)
+
+        # final should have shape (16, 224, 224)
+        return self.final(p)
+
+
 class DecoderCup(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         head_channels = 512
         self.conv_more = Conv2dReLU(
-            # 768
             config.hidden_size,
-
-            # 512
             head_channels,
             kernel_size=3,
             padding=1,
             use_batchnorm=True,
         )
-        decoder_channels = config.decoder_channels
-
-        # 512, 256, 128, 64
-        in_channels = [head_channels] + list(decoder_channels[:-1])
-
-        # 256, 128, 64, 16
-        out_channels = decoder_channels
+        self.x_to_out = Sequential(
+            nn.UpsamplingBilinear2d(size=224),
+        )
 
         # config.n_skip = 3
         if self.config.n_skip != 0:
@@ -391,48 +421,8 @@ class DecoderCup(nn.Module):
             for i in range(4 - self.config.n_skip):  # re-select the skip channels according to n_skip
                 skip_channels[3 - i] = 0
 
-        else:
-            skip_channels = [0, 0, 0, 0]
-
-        """
-        DecoderBlock
-        in      skip
-        1024    512     -> 256
-        512     256     -> 128
-        192     64      -> 64
-        64      0       -> 16
-        """
-        self.conv_by_origin_target_channels: Dict[Tuple[int, int], nn.Sequential] = {
-            (512, 128): nn.Sequential(
-                Conv2dReLU(512, 128, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=8)
-            ),
-            (512, 64): nn.Sequential(
-                Conv2dReLU(512, 64, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=16)
-            ),
-            (256, 64): nn.Sequential(
-                Conv2dReLU(256, 64, kernel_size=3, padding=1, use_batchnorm=True),
-                nn.UpsamplingBilinear2d(scale_factor=8)
-            ),
-        }
-        self.tensor_by_channel_number: Dict[int, Tensor] = dict()
-        self.channels_to_concat_by_channel: Dict[int, List[int]] = {
-            512: [],
-            256: [],
-            128: [512],
-            64: [512, 256]
-        }
-        blocks = [
-            DecoderBlock(
-                in_ch,
-                out_ch,
-                sk_ch,
-                n_concat_tensors=len(self.channels_to_concat_by_channel[in_ch])
-            )
-            for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
-        ]
-        self.blocks = nn.ModuleList(blocks)
+        self.psp_net = CustomPSPNet(psp_size=768)
+        self.conv_final = Conv2dReLU(2, 1, kernel_size=3, padding=1, use_batchnorm=True)
 
     # features = [(12, 512, 28, 28), (12, 256, 56, 56), (12, 64, 112, 112)]
     def forward(self, hidden_states, features=None):
@@ -442,56 +432,21 @@ class DecoderCup(nn.Module):
         x = x.contiguous().view(B, hidden, h, w)
 
         # (12, 768, 14, 14) -> (12, 512, 14, 14)
-        x = self.conv_more(x)
-
-        # blocks:   (1024, 256), (512, 128), (192, 64), (64, 16)
-
-        """
-        x (initial):  (BS, 512, 14, 14)
-        features:     (BS, 512, 28, 28), (BS, 256, 56, 56), (BS, 64, 112, 112)
-        
-        DecoderBlock
-        expect  in              skip            out
-        1024    512, 14, 14     512, 28, 28     256, 28, 28
-        512     256, 28, 28     256, 56, 56     128, 56, 56
-        192     128, 56, 56     64, 112, 112    64, 112, 112
-        64      64, 112, 112    None            16, 224, 224
-        """
-        for i, decoder_block in enumerate(self.blocks):
-            n_channels = list(x.size())[1]
-            self.tensor_by_channel_number[n_channels] = x
-
-            if features is not None:
-                skip = features[i] if (i < self.config.n_skip) else None
-            else:
-                skip = None
-
-            to_concat_tensors = []
-
-            if self.channels_to_concat_by_channel[n_channels]:
-                channels_to_concat = self.channels_to_concat_by_channel[n_channels]
-
-                for channel_origin in channels_to_concat:
-                    conv_to_apply = self.conv_by_origin_target_channels[(channel_origin, n_channels)]
-                    tensor_to_map = self.tensor_by_channel_number[channel_origin]
-                    fixed_tensor = conv_to_apply(tensor_to_map)
-                    to_concat_tensors.append(fixed_tensor)
-
-            x = decoder_block(x, skip=skip, to_concat_tensors=to_concat_tensors)
-
-        return x
+        x = self.psp_net(x)
+        x_out = self.x_to_out(x)
+        return x_out
 
 
-class VisionTransformerSkips3(nn.Module):
-    def __init__(self, config, img_size=224, num_classes=21843, zero_head=False, vis=False):
-        super(VisionTransformerSkips3, self).__init__()
+class TransPyramidPooling(nn.Module):
+    def __init__(self, config, img_size=224, num_classes=1, zero_head=False, vis=False):
+        super(TransPyramidPooling, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier
         self.transformer = Transformer(config, img_size, vis)
         self.decoder = DecoderCup(config)
         self.segmentation_head = SegmentationHead(
-            in_channels=config['decoder_channels'][-1],
+            in_channels=1,
             out_channels=config['n_classes'],
             kernel_size=3,
         )
@@ -502,8 +457,7 @@ class VisionTransformerSkips3(nn.Module):
             x = x.repeat(1, 3, 1, 1)
         x, attn_weights, features = self.transformer(x)  # (B, n_patch, hidden)
         x = self.decoder(x, features)
-        logits = self.segmentation_head(x)
-        return logits
+        return x
 
     def load_from(self, weights):
         with torch.no_grad():

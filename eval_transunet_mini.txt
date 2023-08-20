@@ -1,0 +1,149 @@
+Namespace(
+    batch_size=8, data_path='data/nyu2_train.csv', dataset='nyu_reduced',
+    eval_mode='alhashim', evaluate=False, learning_rate=0.0001, load_checkpoint='',
+    model=<Models.TransUnet: 'trans-unet'>, num_epochs=10, num_workers=0,
+    resolution=<Resolutions.Mini: 'mini'>, save_checkpoint='train_checkpoints',
+    save_results='./results', scheduler_step_size=15, test_path=None, train=True, weights_path=None
+)
+Maximum Depth of Dataset: 10.0
+23:05 - Epoch 0
+
+*
+Average Training Loss: 0.0680
+RMSE=3.542
+MAE=nan
+Delta1=0.193
+Delta2=0.344
+Delta3=0.477
+REL=0.520
+Lg10=nan
+t_GPU=0.020
+
+23:09 - Model saved
+23:09 - Epoch 1
+
+*
+Average Training Loss: 0.0333
+RMSE=1.881
+MAE=0.148
+Delta1=0.546
+Delta2=0.820
+Delta3=0.934
+REL=0.249
+Lg10=0.113
+t_GPU=0.018
+
+23:13 - Model saved
+23:13 - Epoch 2
+
+*
+Average Training Loss: 0.0288
+RMSE=1.521
+MAE=0.118
+Delta1=0.658
+Delta2=0.897
+Delta3=0.970
+REL=0.202
+Lg10=0.088
+t_GPU=0.018
+
+23:17 - Model saved
+23:17 - Epoch 3
+
+*
+Average Training Loss: 0.0259
+RMSE=1.292
+MAE=0.099
+Delta1=0.735
+Delta2=0.936
+Delta3=0.984
+REL=0.169
+Lg10=0.074
+t_GPU=0.018
+
+23:21 - Model saved
+23:21 - Epoch 4
+
+*
+Average Training Loss: 0.0240
+RMSE=1.126
+MAE=0.086
+Delta1=0.792
+Delta2=0.958
+Delta3=0.991
+REL=0.147
+Lg10=0.064
+t_GPU=0.018
+
+23:25 - Model saved
+23:25 - Epoch 5
+
+*
+Average Training Loss: 0.0222
+RMSE=0.980
+MAE=0.076
+Delta1=0.840
+Delta2=0.972
+Delta3=0.994
+REL=0.128
+Lg10=0.055
+t_GPU=0.019
+
+23:29 - Model saved
+23:29 - Epoch 6
+
+*
+Average Training Loss: 0.0210
+RMSE=0.878
+MAE=0.068
+Delta1=0.874
+Delta2=0.980
+Delta3=0.996
+REL=0.115
+Lg10=0.050
+t_GPU=0.019
+
+23:33 - Model saved
+23:33 - Epoch 7
+
+*
+Average Training Loss: 0.0200
+RMSE=0.803
+MAE=0.063
+Delta1=0.898
+Delta2=0.985
+Delta3=0.997
+REL=0.105
+Lg10=0.045
+t_GPU=0.019
+
+23:37 - Model saved
+23:37 - Epoch 8
+
+*
+Average Training Loss: 0.0190
+RMSE=0.728
+MAE=0.057
+Delta1=0.918
+Delta2=0.988
+Delta3=0.998
+REL=0.095
+Lg10=0.041
+t_GPU=0.019
+
+23:41 - Model saved
+23:41 - Epoch 9
+
+*
+Average Training Loss: 0.0181
+RMSE=0.664
+MAE=0.052
+Delta1=0.936
+Delta2=0.991
+Delta3=0.998
+REL=0.086
+Lg10=0.037
+t_GPU=0.020
+
+23:46 - Model saved
+Model saved.

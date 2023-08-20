@@ -1,0 +1,2 @@
+python main.py --eval --dataset nyu_reduced --resolution mini --model MODEL_NAME --test_path NYU_Testset.zip --num_workers=2 --weights_path results/best_model.pth --save_results eval_results
+python main.py --train --dataset nyu_reduced --resolution mini --model MODEL_NAME --data_path data/nyu2_train.csv --num_workers=2 --save_checkpoint train_checkpoints

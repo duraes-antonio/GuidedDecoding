@@ -15,13 +15,13 @@ import torch
 import torch.nn as nn
 from ml_collections import ConfigDict
 from scipy import ndimage
+from torch import Tensor
 from torch.nn import Dropout, Softmax, Linear, Conv2d, LayerNorm
+from torch.nn import functional as F
 from torch.nn.modules.utils import _pair
 
-from model.trans_unet_plus_plus import vit_seg_configs as configs
-from model.trans_unet_plus_plus.vit_seg_modeling_resnet_skip import ResNetV2
-from model.unet_3_plus.init_weights import init_weights
-from model.unet_3_plus.layers import unetConv2
+from . import vit_seg_configs as configs
+from .vit_seg_modeling_resnet_skip import ResNetV2
 
 logger = logging.getLogger(__name__)
 
@@ -328,18 +328,83 @@ class SegmentationHead(nn.Sequential):
         super().__init__(conv2d, upsampling)
 
 
+class PSPModule(nn.Module):
+    def __init__(self, features, out_features=512, sizes=(4, 8, 16, 32)):
+        super().__init__()
+        self.stages = []
+        self.stages = nn.ModuleList([self.__make_stage__(features, size) for size in sizes])
+        self.bottleneck = nn.Conv2d(features * (len(sizes) + 1), out_features, kernel_size=1)
+        self.relu = nn.ReLU()
+
+    @staticmethod
+    def __make_stage__(features, size):
+        prior = nn.AdaptiveAvgPool2d(output_size=(size, size))
+        conv = nn.Conv2d(features, features, kernel_size=1, bias=False)
+        return nn.Sequential(prior, conv)
+
+    def forward(self, feats):
+        h, w = feats.size(2), feats.size(3)
+        priors = [F.upsample(input=stage(feats), size=(h, w), mode='bilinear') for stage in self.stages] + [feats]
+        bottle = self.bottleneck(torch.cat(priors, 1))
+        return self.relu(bottle)
+
+
+class PSPUpsample(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.PReLU()
+        )
+
+    def forward(self, x):
+        h, w = 2 * x.size(2), 2 * x.size(3)
+        p = F.upsample(input=x, size=(h, w), mode='bilinear')
+        return self.conv(p)
+
+
+class CustomPSPNet(nn.Module):
+    def __init__(self, n_classes=1, sizes=(1, 2, 3, 6), psp_size=2048):
+        super().__init__()
+        self.psp = PSPModule(psp_size, 1024, sizes)
+        self.drop_1 = nn.Dropout2d(p=0.3)
+
+        self.up_1 = PSPUpsample(1024, 256)
+        self.up_2 = PSPUpsample(256, 64)
+        self.up_3 = PSPUpsample(64, 64)
+
+        self.drop_2 = nn.Dropout2d(p=0.15)
+        self.final = nn.Sequential(
+            nn.Conv2d(64, n_classes, kernel_size=1),
+            nn.ReLU(),
+        )
+
+    def forward(self, features: Tensor):
+        p = self.psp(features)
+        p = self.drop_1(p)
+
+        p = self.up_1(p)
+        p = self.drop_2(p)
+
+        p = self.up_2(p)
+        p = self.drop_2(p)
+
+        p = self.up_3(p)
+        p = self.drop_2(p)
+
+        # final should have shape (16, 224, 224)
+        return self.final(p)
+
+
 class DecoderCup(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         head_channels = 512
         self.conv_more = Conv2dReLU(
-            # 768
             config.hidden_size,
-
-            # 512
             head_channels,
-
             kernel_size=3,
             padding=1,
             use_batchnorm=True,
@@ -352,21 +417,39 @@ class DecoderCup(nn.Module):
         # 256, 128, 64, 16
         out_channels = decoder_channels
 
-        # config.skip_channels = [512, 256, 64, 16]
-        skip_channels = self.config.skip_channels
-
         # config.n_skip = 3
-        for i in range(4 - self.config.n_skip):  # re-select the skip channels according to n_skip
-            skip_channels[3 - i] = 0
+        if self.config.n_skip != 0:
 
+            # config.skip_channels = [512, 256, 64, 16]
+            skip_channels = self.config.skip_channels
+            for i in range(4 - self.config.n_skip):  # re-select the skip channels according to n_skip
+                skip_channels[3 - i] = 0
+
+        else:
+            skip_channels = [0, 0, 0, 0]
+
+        self.psp_x = PSPModule(512, 512)
+        psp_blocks = [
+            PSPModule(512, 512),
+            PSPModule(256, 256),
+            PSPModule(64, 64),
+        ]
+        self.psp_blocks = nn.ModuleList(psp_blocks)
+
+        """
+        DecoderBlock
+        in      skip
+        1024    512     -> 256
+        512     256     -> 128
+        192     64      -> 64
+        64      0       -> 16
+        """
         blocks = [
-            DecoderBlock(in_ch, out_ch, sk_ch)
-            for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
+            DecoderBlock(in_ch, out_ch, sk_ch) for in_ch, out_ch, sk_ch in zip(in_channels, out_channels, skip_channels)
         ]
         self.blocks = nn.ModuleList(blocks)
 
     # features = [(12, 512, 28, 28), (12, 256, 56, 56), (12, 64, 112, 112)]
-    # -> features = [(12, 1024, 14, 14), (12, 512, 28, 28), (12, 256, 56, 56), (12, 128, 112, 112), (12, 64, 224, 224)]
     def forward(self, hidden_states, features=None):
         B, n_patch, hidden = hidden_states.size()  # reshape from (B, n_patch, hidden) to (B, h, w, hidden)
         h, w = int(np.sqrt(n_patch)), int(np.sqrt(n_patch))
@@ -375,246 +458,38 @@ class DecoderCup(nn.Module):
 
         # (12, 768, 14, 14) -> (12, 512, 14, 14)
         x = self.conv_more(x)
+        x = self.psp_x(x)
 
         # x:        (BS, 512, 14, 14)
         # features: (BS, 512, 28, 28), (BS, 256, 56, 56), (BS, 64, 112, 112)
         # blocks:   (1024, 256), (512, 128), (192, 64), (64, 16)
+
+        """
+        DecoderBlock
+        expect  in              skip            out
+        1024    512, 14, 14     512, 28, 28     256, 28, 28
+        512     256, 28, 28     256, 56, 56     128, 56, 56
+        192     128, 56, 56     64, 112, 112    64, 112, 112
+        64      64, 112, 112    None            16, 224, 224
+        """
         for i, decoder_block in enumerate(self.blocks):
             skip = None
 
-            if i < self.config.n_skip:
-                skip = features[i]
+            if features is not None and i < self.config.n_skip:
+                skip = self.psp_blocks[i](features[i])
 
             x = decoder_block(x, skip=skip)
         return x
 
 
-class UNet3Plus(nn.Module):
-
-    def __init__(self, config, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batch_norm=True):
-        super(UNet3Plus, self).__init__()
-        filters = [64, 128, 256, 512, 1024]
-        head_channels = 512
-
-        self.config = config
-        self.conv_more = Conv2dReLU(
-            config.hidden_size,
-            head_channels,
-            kernel_size=3,
-            padding=1,
-            use_batchnorm=True,
-        )
-        self.is_deconv = is_deconv
-        self.in_channels = in_channels
-        self.is_batch_norm = is_batch_norm
-
-        # -------------Encoder--------------
-        self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batch_norm)
-        self.max_pool1 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv2 = unetConv2(filters[0], filters[1], self.is_batch_norm)
-        self.max_pool2 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv3 = unetConv2(filters[1], filters[2], self.is_batch_norm)
-        self.max_pool3 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv4 = unetConv2(filters[2], filters[3], self.is_batch_norm)
-        self.max_pool4 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv5 = unetConv2(filters[3], filters[4], self.is_batch_norm)
-
-        # -------------Decoder--------------
-        self.cat_channels = filters[0]
-        self.cat_blocks = 5
-        self.up_channels = self.cat_channels * self.cat_blocks
-
-        '''stage 4d'''
-        # e1 -> 320 * 320, d4 -> 40 * 40, Pooling 8 times
-        self.e1_d4_mp2d = nn.MaxPool2d(8, 8, ceil_mode=True)
-        self.e1_d4_conv = Conv2dReLU(filters[0], self.cat_channels, kernel_size=3, padding=1)
-
-        # e2 -> 160 * 160, d4 -> 40 * 40, Pooling 4 times
-        self.e2_d4_mp2d = nn.MaxPool2d(4, 4, ceil_mode=True)
-        self.e2_d4_conv = Conv2dReLU(filters[1], self.cat_channels, kernel_size=3, padding=1)
-
-        # e3 -> 80 * 80, d4 -> 40 * 40, Pooling 2 times
-        self.e3_d4_mp2d = nn.MaxPool2d(2, 2, ceil_mode=True)
-        self.e3_d4_conv = Conv2dReLU(filters[2], self.cat_channels, kernel_size=3, padding=1)
-
-        # e4 -> 40 * 40, d4 -> 40 * 40, Concatenation
-        self.e4_d4_conv = Conv2dReLU(filters[3], self.cat_channels, kernel_size=3, padding=1)
-
-        # e5 -> 20 * 20, d4 -> 40 * 40, Upsample 2 times
-        self.e5_up_d4 = nn.Upsample(scale_factor=2, mode='bilinear')  # 14 * 14
-        self.e5_d4_conv = Conv2dReLU(filters[4], self.cat_channels, kernel_size=3, padding=1)
-
-        # fusion(e1_mp2d_d4, e2_mp2d_d4, e3_mp2d_d4, e4_Cat_d4, e5_up_d4)
-        self.d4_conv = Conv2dReLU(self.up_channels, self.up_channels, kernel_size=3, padding=1)
-
-        '''stage 3d'''
-        # e1 -> 320 * 320, d3 -> 80 * 80, Pooling 4 times
-        self.e1_d3_mp2d = nn.MaxPool2d(4, 4, ceil_mode=True)
-        self.e1_d3_conv = Conv2dReLU(filters[0], self.cat_channels, kernel_size=3, padding=1)
-
-        # e2 -> 160 * 160, d3 -> 80 * 80, Pooling 2 times
-        self.e2_d3_mp2d = nn.MaxPool2d(2, 2, ceil_mode=True)
-        self.e2_d3_conv = Conv2dReLU(filters[1], self.cat_channels, kernel_size=3, padding=1)
-
-        # e3 -> 80 * 80, d3 -> 80 * 80, Concatenation
-        self.e3_d3_conv = Conv2dReLU(filters[2], self.cat_channels, kernel_size=3, padding=1)
-
-        # d4 -> 40 * 40, d4 -> 80 * 80, Upsample 2 times
-        self.d4_up_d3 = nn.Upsample(scale_factor=2, mode='bilinear')  # 14 * 14
-        self.d4_d3_conv = Conv2dReLU(self.up_channels, self.cat_channels, kernel_size=3, padding=1)
-
-        # e5 -> 20 * 20, d4 -> 80 * 80, Upsample 4 times
-        self.e5_up_d3 = nn.Upsample(scale_factor=4, mode='bilinear')  # 14 * 14
-        self.e5_d3_conv = Conv2dReLU(filters[4], self.cat_channels, kernel_size=3, padding=1)
-
-        # fusion(e1_mp2d_d3, e2_mp2d_d3, e3_Cat_d3, d4_up_d3, e5_up_d3)
-        self.d3_conv = Conv2dReLU(self.up_channels, self.up_channels, kernel_size=3, padding=1)
-
-        '''stage 2d '''
-        # e1 -> 320 * 320, d2 -> 160 * 160, Pooling 2 times
-        self.e1_d2_mp2d = nn.MaxPool2d(2, 2, ceil_mode=True)
-        self.e1_d2_conv = Conv2dReLU(filters[0], self.cat_channels, kernel_size=3, padding=1)
-
-        # e2 -> 160 * 160, d2 -> 160 * 160, Concatenation
-        self.e2_cat_d2_conv = Conv2dReLU(filters[1], self.cat_channels, kernel_size=3, padding=1)
-
-        # d3 -> 80 * 80, d2 -> 160 * 160, Upsample 2 times
-        self.d3_d2_up = nn.Upsample(scale_factor=2, mode='bilinear')  # 14 * 14
-        self.d3_d2_conv = Conv2dReLU(self.up_channels, self.cat_channels, kernel_size=3, padding=1)
-
-        # d4 -> 40 * 40, d2 -> 160 * 160, Upsample 4 times
-        self.d4_d2_up = nn.Upsample(scale_factor=4, mode='bilinear')  # 14 * 14
-        self.d4_d2_conv = Conv2dReLU(self.up_channels, self.cat_channels, kernel_size=3, padding=1)
-
-        # e5 -> 20 * 20, d2 -> 160 * 160, Upsample 8 times
-        self.e5_d2_up = nn.Upsample(scale_factor=8, mode='bilinear')  # 14 * 14
-        self.e5_d2_conv = Conv2dReLU(filters[4], self.cat_channels, kernel_size=3, padding=1)
-
-        # fusion(e1_mp2d_d2, e2_Cat_d2, d3_up_d2, d4_up_d2, e5_up_d2)
-        self.d2_conv = Conv2dReLU(self.up_channels, self.up_channels, kernel_size=3, padding=1)
-
-        '''stage 1d'''
-        # e1 -> 320 * 320, d1 -> 320 * 320, Concatenation
-        self.e1_d1_conv = Conv2dReLU(filters[0], self.cat_channels, kernel_size=3, padding=1)
-
-        # d2 -> 160 * 160, d1 -> 320 * 320, Upsample 2 times
-        self.d2_d1_up = nn.Upsample(scale_factor=2, mode='bilinear')  # 14 * 14
-        self.d2_d1_conv = Conv2dReLU(self.up_channels, self.cat_channels, kernel_size=3, padding=1)
-
-        # d3 -> 80 * 80, d1 -> 320 * 320, Upsample 4 times
-        self.d3_d1_up = nn.Upsample(scale_factor=4, mode='bilinear')  # 14 * 14
-        self.d3_d1_conv = Conv2dReLU(self.up_channels, self.cat_channels, kernel_size=3, padding=1)
-
-        # d4 -> 40 * 40, d1 -> 320 * 320, Upsample 8 times
-        self.d4_d1_up = nn.Upsample(scale_factor=8, mode='bilinear')  # 14 * 14
-        self.d4_d1_conv = Conv2dReLU(self.up_channels, self.cat_channels, kernel_size=3, padding=1)
-
-        # e5 -> 20 * 20, d1 -> 320 * 320, Upsample 16 times
-        self.e5_d1_up = nn.Upsample(scale_factor=16, mode='bilinear')  # 14 * 14
-        self.e5_d1_conv = Conv2dReLU(filters[4], self.cat_channels, kernel_size=3, padding=1)
-
-        # fusion(e1_cat_d1, d2_up_d1, d3_up_d1, d4_up_d1, e5_up_d1)
-        self.d1_conv = Conv2dReLU(self.up_channels, self.up_channels, kernel_size=3, padding=1)
-
-        # output
-        self.output_conv = nn.Conv2d(self.up_channels, n_classes, 3, padding=1)
-
-        # initialise weights
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                init_weights(m, init_type='kaiming')
-
-            elif isinstance(m, nn.BatchNorm2d):
-                init_weights(m, init_type='kaiming')
-
-    # features = [(12, 512, 28, 28), (12, 256, 56, 56), (12, 64, 112, 112)]
-    # Needed:
-    # features = [(12, 1024, 14, 14), (12, 512, 28, 28), (12, 256, 56, 56), (12, 128, 112, 112), (12, 64, 224, 224)]
-    def forward(self, hidden_states, features=None):
-
-        # reshape from (B, n_patch, hidden) to (B, h, w, hidden)
-        batch_size, n_patch, hidden = hidden_states.size()
-        h, w = int(np.sqrt(n_patch)), int(np.sqrt(n_patch))
-        x = hidden_states.permute(0, 2, 1)
-        x = x.contiguous().view(batch_size, hidden, h, w)
-
-        # (12, 768, 14, 14) -> (12, 512, 14, 14)
-        x = self.conv_more(x)
-
-        # -------------Encoder-------------
-        e1 = self.conv1(x)  # e1 -> (320, 320, 64)
-
-        e2 = self.max_pool1(e1)
-        e2 = self.conv2(e2)  # e2 -> (160, 160, 128)
-
-        e3 = self.max_pool2(e2)
-        e3 = self.conv3(e3)  # e3 -> (80, 80, 256)
-
-        e4 = self.max_pool3(e3)
-        e4 = self.conv4(e4)  # e4 -> (40, 40, 512)
-
-        e5 = self.max_pool4(e4)
-        e5 = self.conv5(e5)  # e5 -> (20, 20, 1024)
-
-        # -------------Decoder-------------
-
-        """Decoder layer 4"""
-        e1_d4 = self.e1_d4_conv(self.e1_d4_mp2d(e1))
-        e2_d4 = self.e2_d4_conv(self.e2_d4_mp2d(e2))
-        e3_d4 = self.e3_d4_conv(self.e3_d4_mp2d(e3))
-        e4_d4 = self.e4_d4_conv(e4)
-        e5_d4 = self.e5_d4_conv(self.e5_up_d4(e5))
-
-        # d4 -> 40 * 40 * UpChannels
-        d4 = self.d4_conv(torch.cat((e1_d4, e2_d4, e3_d4, e4_d4, e5_d4), 1))
-
-        """Decoder layer 3"""
-        e1_d3 = self.e1_d3_conv(self.e1_d3_mp2d(e1))
-        e2_d3 = self.e2_d3_conv(self.e2_d3_mp2d(e2))
-        e3_d3 = self.e3_d3_conv(e3)
-        d4_d3 = self.d4_d3_conv(self.d4_up_d3(d4))
-        e5_d3 = self.e5_d3_conv(self.e5_up_d3(e5))
-
-        # d3 -> 80 * 80 * UpChannels
-        d3 = self.d3_conv(torch.cat((e1_d3, e2_d3, e3_d3, d4_d3, e5_d3), 1))
-
-        """Decoder layer 2"""
-        e1_d2 = self.e1_d2_conv(self.e1_d2_mp2d(e1))
-        e2_d2 = self.e2_cat_d2_conv(e2)
-        d3_d2 = self.d3_d2_conv(self.d3_d2_up(d3))
-        d4_d2 = self.d4_d2_conv(self.d4_d2_up(d4))
-        e5_d2 = self.e5_d2_conv(self.e5_d2_up(e5))
-
-        # d2 -> 160 * 160 * UpChannels
-        d2 = self.d2_conv(torch.cat((e1_d2, e2_d2, d3_d2, d4_d2, e5_d2), 1))
-
-        """Decoder layer 1"""
-        e1_d1 = self.e1_d1_conv(e1)
-        d2_d1 = self.d2_d1_conv(self.d2_d1_up(d2))
-        d3_d1 = self.d3_d1_conv(self.d3_d1_up(d3))
-        d4_d1 = self.d4_d1_conv(self.d4_d1_up(d4))
-        e5_d1 = self.e5_d1_conv(self.e5_d1_up(e5))
-
-        # d1 -> 320 * 320 * UpChannels
-        d1 = self.d1_conv(torch.cat((e1_d1, d2_d1, d3_d1, d4_d1, e5_d1), 1))
-
-        d1 = self.output_conv(d1)  # d1 -> 320 * 320 * n_classes
-        return d1
-        # return F.relu(d1)
-
-
-class VisionTransformer2(nn.Module):
-    def __init__(self, config, img_size=224, num_classes=21843, zero_head=False, vis=False):
-        super(VisionTransformer2, self).__init__()
+class VisionTransformerAllPyramidPooling(nn.Module):
+    def __init__(self, config, img_size=224, num_classes=1, zero_head=False, vis=False):
+        super(VisionTransformerAllPyramidPooling, self).__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier
         self.transformer = Transformer(config, img_size, vis)
-        self.decoder = UNet3Plus(config)
+        self.decoder = DecoderCup(config)
         self.segmentation_head = SegmentationHead(
             in_channels=config['decoder_channels'][-1],
             out_channels=config['n_classes'],
