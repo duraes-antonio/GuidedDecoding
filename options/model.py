@@ -16,6 +16,7 @@ class Models(Enum):
     UNetPlusPlusVGG = 'unet++-vgg'
     UNetPlusPlusVGGLB = 'unet++-vgg-lb'
     UNetPlusPlusResNet = 'unet++-resnet'
+    UNetPlusPlusResNetLB = 'unet++-resnet-lb'
     TransUnet = 'trans-unet'
     TransPyramidPooling = 'trans-pp'
     TransUnetPyramidPooling = 'trans-unet-pp'
