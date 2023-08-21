@@ -40,6 +40,7 @@ class NestedUNet(nn.Module):
 
     def forward(self, x: Tensor):
         x0_0 = self.conv0_0(x)
+
         x1_0 = self.conv1_0(self.pool(x0_0))
         x0_1 = self.conv0_1(torch.cat([x0_0, self.up(x1_0)], 1))
 
