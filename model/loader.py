@@ -11,9 +11,10 @@ from model.trans_unet_all_pp.vit_seg_modeling import VisionTransformerAllPyramid
 from model.trans_unet_partial_pp.vit_seg_modeling import VisionTransformerPyramidPooling
 from model.unet_3_plus.unet_3_plus import UNet_3Plus
 from model.unet_3_plus_custom_encoder.unet_3_plus import Unet3PlusCustomEncoder
-from model.unet_plus_plus.nested import NestedUNet, NestedUNetLuizBlock, NestedUNetVGGLuizBlock, NestedUNetVGG, \
-    NestedUNetResNet
+from model.unet_plus_plus.nested import NestedUNet, NestedUNetLuizBlock
 from model.unet_plus_plus.nested_luiz import LuizNestedUNet
+from model.unet_plus_plus.nested_resnet import NestedUNetResNetLE
+from model.unet_plus_plus.nested_vgg import NestedUNetVGGLE, NestedUNetVGGLuizBlock
 from options.dataset_resolution import Resolutions, shape_by_resolution
 from options.model import Models
 
@@ -40,13 +41,13 @@ def load_model(
         model = NestedUNetLuizBlock()
 
     if model == Models.UNetPlusPlusVGG:
-        model = NestedUNetVGG()
+        model = NestedUNetVGGLE()
 
     if model == Models.UNetPlusPlusVGGLB:
         model = NestedUNetVGGLuizBlock()
 
     if model == Models.UNetPlusPlusResNet:
-        model = NestedUNetResNet()
+        model = NestedUNetResNetLE()
 
     if model == Models.MTUnet:
         model = MTUNet(1)
