@@ -139,7 +139,7 @@ class NestedUNetResNet(nn.Module):
     def __init__(self, num_classes=1, input_channels=3, deep_supervision=False):
         super().__init__()
         self.encoder = LuizResNetEncoder()
-        nb_filter = [64, 256, 512, 1024, 2048]
+        nb_filter = [input_channels, 64, 256, 512, 1024, 2048]
         self.deep_supervision = deep_supervision
 
         self.pool = nn.MaxPool2d(2, 2)

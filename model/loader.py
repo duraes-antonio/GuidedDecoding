@@ -12,9 +12,11 @@ from model.trans_unet_partial_pp.vit_seg_modeling import VisionTransformerPyrami
 from model.unet_3_plus.unet_3_plus import UNet_3Plus
 from model.unet_3_plus_custom_encoder.unet_3_plus import Unet3PlusCustomEncoder
 from model.unet_plus_plus.nested import NestedUNet, NestedUNetLuizBlock
+from model.unet_plus_plus.nested_inception import NestedUNetInceptionV3
 from model.unet_plus_plus.nested_luiz import LuizNestedUNet
 from model.unet_plus_plus.nested_resnet import NestedUNetResNetLB, NestedUNetResNet, NestedUNetResNet2
-from model.unet_plus_plus.nested_vgg import NestedUNetVGGLE, NestedUNetVGGLuizBlock
+from model.unet_plus_plus.nested_vgg import NestedUNetVGGLE, NestedUNetVGGLuizBlock, ChatGPTNestedUNetVGG16BNWFU, \
+    ChatGPTNestedUNetVGG16BN
 from options.dataset_resolution import Resolutions, shape_by_resolution
 from options.model import Models
 
@@ -40,6 +42,12 @@ def load_model(
     if model == Models.UNetPlusPlusLB:
         model = NestedUNetLuizBlock()
 
+    if model == Models.UNetPlusPlusVGGBN:
+        model = ChatGPTNestedUNetVGG16BN()
+
+    if model == Models.UNetPlusPlusVGGBNWFU:
+        model = ChatGPTNestedUNetVGG16BNWFU()
+
     if model == Models.UNetPlusPlusVGG:
         model = NestedUNetVGGLE()
 
@@ -48,6 +56,9 @@ def load_model(
 
     if model == Models.UNetPlusPlusResNetWithoutFinalUp:
         model = NestedUNetResNet2()
+
+    if model == Models.UNetPlusPlusInception:
+        model = NestedUNetInceptionV3()
 
     if model == Models.UNetPlusPlusResNet:
         model = NestedUNetResNet()

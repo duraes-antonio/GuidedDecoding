@@ -13,11 +13,16 @@ class Models(Enum):
     UNetPlusPlusLuiz = 'unet++-luiz'
     UNetPlusPlus = 'unet++'
     UNetPlusPlusLB = 'unet++-lb'
+
     UNetPlusPlusVGG = 'unet++-vgg'
+    UNetPlusPlusVGGBN = 'unet++-vgg-bn'
+    UNetPlusPlusVGGBNWFU = 'unet++-vgg-bn-wfu'
+
     UNetPlusPlusVGGLB = 'unet++-vgg-lb'
     UNetPlusPlusResNet = 'unet++-resnet'
     UNetPlusPlusResNetWithoutFinalUp = 'unet++-resnet-wfu'
     UNetPlusPlusResNetLB = 'unet++-resnet-lb'
+    UNetPlusPlusInception = 'unet++-inception-v3'
     TransUnet = 'trans-unet'
     TransPyramidPooling = 'trans-pp'
     TransUnetPyramidPooling = 'trans-unet-pp'
