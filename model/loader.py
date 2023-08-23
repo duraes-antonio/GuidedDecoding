@@ -14,8 +14,8 @@ from model.unet_3_plus_custom_encoder.unet_3_plus import Unet3PlusCustomEncoder
 from model.unet_plus_plus.nested import NestedUNet, NestedUNetLuizBlock
 from model.unet_plus_plus.nested_luiz import LuizNestedUNet
 from model.unet_plus_plus.nested_resnet import NestedUNetResNetLB, NestedUNetResNet, NestedUNetResNet2
-from model.unet_plus_plus.nested_vgg import NestedUNetVGGLE, NestedUNetVGGLuizBlock, ChatGPTNestedUNetVGG16BNWFU, \
-    ChatGPTNestedUNetVGG16BN
+from model.unet_plus_plus.nested_vgg import NestedUNetVGGLE, NestedUNetVGGLuizBlock, NestedUNetVGG16BNWFU_ECH, \
+    NestedUNetVGG16BN_ECH, NestedUNetVGG16BN_ECG_BL, NestedUNetVGG16BN_EL_BL
 from options.dataset_resolution import Resolutions, shape_by_resolution
 from options.model import Models
 
@@ -38,22 +38,28 @@ def load_model(
     if model == Models.UNetPlusPlus:
         model = NestedUNet()
 
-    if model == Models.UNetPlusPlusLB:
+    if model == Models.UNetPlusPlus_BL:
         model = NestedUNetLuizBlock()
 
     if model == Models.UNetPlusPlusVGGBN:
-        model = ChatGPTNestedUNetVGG16BN()
+        model = NestedUNetVGG16BN_ECH()
 
-    if model == Models.UNetPlusPlusVGGBNWFU:
-        model = ChatGPTNestedUNetVGG16BNWFU()
+    if model == Models.UNetPlusPlusVGGBN_BL:
+        model = NestedUNetVGG16BN_ECG_BL()
+
+    if model == Models.UNetPlusPlusVGGBN_EL_BL:
+        model = NestedUNetVGG16BN_EL_BL()
+
+    if model == Models.UNetPlusPlusVGGBN_WFU:
+        model = NestedUNetVGG16BNWFU_ECH()
 
     if model == Models.UNetPlusPlusVGG:
         model = NestedUNetVGGLE()
 
-    if model == Models.UNetPlusPlusVGGLB:
+    if model == Models.UNetPlusPlusVGG_BL:
         model = NestedUNetVGGLuizBlock()
 
-    if model == Models.UNetPlusPlusResNetWithoutFinalUp:
+    if model == Models.UNetPlusPlusResNet_WFU:
         model = NestedUNetResNet2()
 
     # if model == Models.UNetPlusPlusInception:
@@ -62,7 +68,7 @@ def load_model(
     if model == Models.UNetPlusPlusResNet:
         model = NestedUNetResNet()
 
-    if model == Models.UNetPlusPlusResNetLB:
+    if model == Models.UNetPlusPlusResNet_BL:
         model = NestedUNetResNetLB()
 
     if model == Models.MTUnet:

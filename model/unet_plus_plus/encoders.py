@@ -41,6 +41,18 @@ class LuizVGG16Encoder(nn.Module):
         return features
 
 
+class LuizVGG16BNEncoder(nn.Module):
+    def __init__(self):
+        super(LuizVGG16BNEncoder, self).__init__()
+        self.encoder = models.vgg16_bn(pretrained=True)
+
+    def forward(self, x):
+        features = [x]
+        for _, v in self.encoder.features._modules.items():
+            features.append(v(features[-1]))
+        return features
+
+
 class ChatGPTVGG16BNEncoder(nn.Module):
     def __init__(self):
         super(ChatGPTVGG16BNEncoder, self).__init__()
