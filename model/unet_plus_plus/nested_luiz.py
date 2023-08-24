@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from model.encoders.mobile_net import LuizMobileNetV2Encoder
 from model.unet_plus_plus.blocks import LuizConvBlock
-from model.unet_plus_plus.encoders import LuizMobileNetV2Encoder
 
 
 #                        bz, ch, he, wi

@@ -1,16 +1,16 @@
+from typing import Optional
+
 import numpy as np
+import segmentation_models_pytorch as smp
 import torch
+from segmentation_models_pytorch.base import SegmentationModel
 
 from model.mt_unet.mt_unet import MTUNet
 from model.mt_unet.mt_unet_3_plus import MTUNet3Plus
 from model.trans_fuse.TransFuse import TransFuse_S
 from model.trans_fuse.TransFuse_pp import TransFuse_S_PlusPlus
-from model.trans_pp.vit_seg_modeling import TransPyramidPooling
 from model.trans_unet.vit_seg_modeling import VisionTransformer, CONFIGS, TransUnetConfigType
-from model.trans_unet_all_pp.vit_seg_modeling import VisionTransformerAllPyramidPooling
-from model.trans_unet_partial_pp.vit_seg_modeling import VisionTransformerPyramidPooling
 from model.unet_3_plus.unet_3_plus import UNet_3Plus
-from model.unet_3_plus_custom_encoder.unet_3_plus import Unet3PlusCustomEncoder
 from model.unet_plus_plus.nested import NestedUNet, NestedUNetLuizBlock
 from model.unet_plus_plus.nested_luiz import LuizNestedUNet
 from model.unet_plus_plus.nested_resnet import NestedUNetResNetLB, NestedUNetResNet, NestedUNetResNet2
@@ -26,62 +26,60 @@ def load_model(
         resolution=Resolutions.Half,
         trans_unet_config: TransUnetConfigType = TransUnetConfigType.r50_vit_b16
 ):
-    if model == Models.UNet3Plus:
-        model = UNet_3Plus()
+    model_instance = get_segmentation_models(model)
 
-    if model == Models.UNet3PlusCustom:
-        model = Unet3PlusCustomEncoder()
+    if model == Models.UNet3Plus:
+        model_instance = UNet_3Plus()
 
     if model == Models.UNetPlusPlusLuiz:
-        model = LuizNestedUNet()
+        model_instance = LuizNestedUNet()
 
     if model == Models.UNetPlusPlus:
-        model = NestedUNet()
+        model_instance = NestedUNet()
 
     if model == Models.UNetPlusPlus_BL:
-        model = NestedUNetLuizBlock()
+        model_instance = NestedUNetLuizBlock()
 
+    """VGG16 Batch normalization"""
     if model == Models.UNetPlusPlusVGGBN:
-        model = NestedUNetVGG16BN_ECH()
+        model_instance = NestedUNetVGG16BN_ECH()
 
     if model == Models.UNetPlusPlusVGGBN_BL:
-        model = NestedUNetVGG16BN_ECG_BL()
+        model_instance = NestedUNetVGG16BN_ECG_BL()
 
     if model == Models.UNetPlusPlusVGGBN_EL_BL:
-        model = NestedUNetVGG16BN_EL_BL()
+        model_instance = NestedUNetVGG16BN_EL_BL()
 
     if model == Models.UNetPlusPlusVGGBN_WFU:
-        model = NestedUNetVGG16BNWFU_ECH()
+        model_instance = NestedUNetVGG16BNWFU_ECH()
 
     if model == Models.UNetPlusPlusVGG:
-        model = NestedUNetVGGLE()
+        model_instance = NestedUNetVGGLE()
 
     if model == Models.UNetPlusPlusVGG_BL:
-        model = NestedUNetVGGLuizBlock()
+        model_instance = NestedUNetVGGLuizBlock()
 
+    """ResNet 101"""
     if model == Models.UNetPlusPlusResNet_WFU:
-        model = NestedUNetResNet2()
-
-    # if model == Models.UNetPlusPlusInception:
-    #     model = NestedUNetInceptionV3()
+        model_instance = NestedUNetResNet2()
 
     if model == Models.UNetPlusPlusResNet:
-        model = NestedUNetResNet()
+        model_instance = NestedUNetResNet()
 
     if model == Models.UNetPlusPlusResNet_BL:
-        model = NestedUNetResNetLB()
+        model_instance = NestedUNetResNetLB()
 
     if model == Models.MTUnet:
-        model = MTUNet(1)
+        model_instance = MTUNet(1)
 
     if model == Models.TransFuse:
-        model = TransFuse_S(1, pretrained=True)
+        model_instance = TransFuse_S(1, pretrained=True)
 
     if model == Models.TransFusePlusPlus:
-        model = TransFuse_S_PlusPlus(1, pretrained=True)
+        model_instance = TransFuse_S_PlusPlus(1, pretrained=True)
 
     if model == Models.MTUnet3Plus:
-        model = MTUNet3Plus(1)
+        model_instance = MTUNet3Plus(1)
 
     if model == Models.TransUnet:
         config_vit = CONFIGS[trans_unet_config.value]
@@ -92,50 +90,59 @@ def load_model(
         if trans_unet_config.value.find('R50') != -1:
             config_vit.patches.grid = (
                 int(img_size / vit_patches_size), int(img_size / vit_patches_size))
-        model = VisionTransformer(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
-        model.load_from(weights=np.load(config_vit.pretrained_path))
-
-    if model == Models.TransPyramidPooling:
-        config_vit = CONFIGS[trans_unet_config.value]
-        img_size = max(shape_by_resolution[resolution])
-        config_vit.n_classes = 1
-        config_vit.n_skip = 3
-        vit_patches_size = 16
-        if trans_unet_config.value.find('R50') != -1:
-            config_vit.patches.grid = (
-                int(img_size / vit_patches_size), int(img_size / vit_patches_size))
-        model = TransPyramidPooling(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
-        model.load_from(weights=np.load(config_vit.pretrained_path))
-        print('\nTransPyramidPooling\n')
-
-    if model == Models.TransUnetPyramidPooling:
-        config_vit = CONFIGS[trans_unet_config.value]
-        img_size = max(shape_by_resolution[resolution])
-        config_vit.n_classes = 1
-        config_vit.n_skip = 3
-        vit_patches_size = 16
-        if trans_unet_config.value.find('R50') != -1:
-            config_vit.patches.grid = (
-                int(img_size / vit_patches_size), int(img_size / vit_patches_size))
-        model = VisionTransformerPyramidPooling(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
-        model.load_from(weights=np.load(config_vit.pretrained_path))
-        print('\nVisionTransformerPyramidPooling\n')
-
-    if model == Models.VisionTransformerAllPyramidPooling:
-        config_vit = CONFIGS[trans_unet_config.value]
-        img_size = max(shape_by_resolution[resolution])
-        config_vit.n_classes = 1
-        config_vit.n_skip = 3
-        vit_patches_size = 16
-        if trans_unet_config.value.find('R50') != -1:
-            config_vit.patches.grid = (
-                int(img_size / vit_patches_size), int(img_size / vit_patches_size))
-        model = VisionTransformerAllPyramidPooling(config_vit, img_size=img_size,
-                                                   num_classes=config_vit.n_classes).cuda()
-        model.load_from(weights=np.load(config_vit.pretrained_path))
-        print('\nVisionTransformerAllPyramidPooling\n')
+        model_instance = VisionTransformer(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
+        model_instance.load_from(weights=np.load(config_vit.pretrained_path))
 
     if load_weights:
-        model.load_state_dict(torch.load(path_weights))
-    print(type(model))
-    return model
+        model_instance.load_state_dict(torch.load(path_weights))
+
+    print(type(model_instance))
+    return model_instance
+
+
+def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
+    sm_default_args = {
+        'encoder_weights': 'imagenet',
+        'classes': 1,
+    }
+    unet_plus_plus_encoder_by_enum = {
+        Models.UNetPlusPlusSENet154: 'senet154',
+        Models.UNetPlusPlusInceptionResNetv2: 'inceptionresnetv2',
+        Models.UNetPlusPlusVGG19BN: 'vgg19_bn',
+        Models.UNetPlusPlusXception: 'tu-xception71',
+    }
+
+    if model in unet_plus_plus_encoder_by_enum:
+        return smp.UnetPlusPlus(encoder_name=unet_plus_plus_encoder_by_enum[model], **sm_default_args)
+
+    unet_encoder_by_enum = {
+        Models.UNetSENet154: 'senet154',
+        Models.UNetInceptionResNetv2: 'inceptionresnetv2',
+        Models.UNetVGG19BN: 'vgg19_bn',
+        Models.UNetXception: 'tu-xception71',
+        Models.UNetMixedTransformer: 'mit_b5',
+    }
+
+    if model in unet_encoder_by_enum:
+        return smp.Unet(encoder_name=unet_encoder_by_enum[model], **sm_default_args)
+
+    ma_net_encoder_by_enum = {
+        Models.MANetSENet154: 'senet154',
+        Models.MANetInceptionResNetv2: 'inceptionresnetv2',
+        Models.MANetXception: 'tu-xception71',
+        Models.MANetMixedTransformer: 'mit_b5',
+    }
+
+    if model in ma_net_encoder_by_enum:
+        return smp.MAnet(encoder_name=ma_net_encoder_by_enum[model], **sm_default_args)
+
+    pan_net_encoder_by_enum = {
+        Models.PANNetSENet154: 'senet154',
+        Models.PANNetVGG19BN: 'vgg19_bn',
+        Models.PANNetXception: 'tu-xception71',
+    }
+
+    if model in pan_net_encoder_by_enum:
+        return smp.PAN(encoder_name=pan_net_encoder_by_enum[model], **sm_default_args)
+
+    return None

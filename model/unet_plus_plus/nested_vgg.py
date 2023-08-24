@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 
+from model.encoders.vgg import LuizVGG16Encoder, LuizVGG16BNEncoder, ChatGPTVGG16BNEncoder
 from model.unet_plus_plus.blocks import LuizConvBlock, VGGBlock
-from model.unet_plus_plus.encoders import LuizVGG16Encoder, ChatGPTVGG16BNEncoder, LuizVGG16BNEncoder
 
 
 def concat(tensor: Tensor, concat_with: List[Tensor]):

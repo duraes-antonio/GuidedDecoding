@@ -1,8 +1,8 @@
 import torch
 from torch import nn, Tensor
 
+from model.encoders.resnet import LuizResNetEncoder
 from model.unet_plus_plus.blocks import LuizConvBlock, VGGBlock
-from model.unet_plus_plus.encoders import LuizResNetEncoder
 from model.unet_plus_plus.nested import concat
 
 
