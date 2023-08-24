@@ -120,7 +120,7 @@ def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
         Models.UNetInceptionResNetv2: 'inceptionresnetv2',
         Models.UNetVGG19BN: 'vgg19_bn',
         Models.UNetXception: 'tu-xception71',
-        Models.UNetMixedTransformer: 'mit_b5',
+        Models.UNetMixedTransformer: 'mit_b3',
     }
 
     if model in unet_encoder_by_enum:
@@ -130,7 +130,7 @@ def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
         Models.MANetSENet154: 'senet154',
         Models.MANetInceptionResNetv2: 'inceptionresnetv2',
         Models.MANetXception: 'tu-xception71',
-        Models.MANetMixedTransformer: 'mit_b5',
+        Models.MANetMixedTransformer: 'mit_b3',
     }
 
     if model in ma_net_encoder_by_enum:
