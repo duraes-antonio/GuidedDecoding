@@ -7,6 +7,7 @@ from segmentation_models_pytorch.base import SegmentationModel
 
 from model.mt_unet.mt_unet import MTUNet
 from model.mt_unet.mt_unet_3_plus import MTUNet3Plus
+from model.trans_att_unet.TransAttUnet import UNet_Attention_Transformer_Multiscale
 from model.trans_fuse.TransFuse import TransFuse_S
 from model.trans_fuse.TransFuse_pp import TransFuse_S_PlusPlus
 from model.trans_unet.vit_seg_modeling import VisionTransformer, CONFIGS, TransUnetConfigType
@@ -81,6 +82,9 @@ def load_model(
     if model == Models.MTUnet3Plus:
         model_instance = MTUNet3Plus(1)
 
+    if model == Models.TransAttentionUnet:
+        model_instance = UNet_Attention_Transformer_Multiscale(3, 1)
+
     if model == Models.TransUnet:
         config_vit = CONFIGS[trans_unet_config.value]
         img_size = max(shape_by_resolution[resolution])
@@ -110,6 +114,7 @@ def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
         Models.UNetPlusPlusInceptionResNetv2: 'inceptionresnetv2',
         Models.UNetPlusPlusVGG19BN: 'vgg19_bn',
         Models.UNetPlusPlusXception: 'tu-xception71',
+        Models.UNetPlusPlusEfficientNet: 'efficientnet-b6',
     }
 
     if model in unet_plus_plus_encoder_by_enum:
@@ -121,6 +126,7 @@ def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
         Models.UNetVGG19BN: 'vgg19_bn',
         Models.UNetXception: 'tu-xception71',
         Models.UNetMixedTransformer: 'mit_b2',
+        Models.UNetEfficientNet: 'efficientnet-b6',
     }
 
     if model in unet_encoder_by_enum:
@@ -128,7 +134,7 @@ def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
 
     ma_net_encoder_by_enum = {
         Models.MANetSENet154: 'senet154',
-        Models.MANetInceptionResNetv2: 'inceptionresnetv2',
+        Models.MANetInceptionResNetV2: 'inceptionresnetv2',
         Models.MANetXception: 'tu-xception71',
         Models.MANetMixedTransformer: 'mit_b2',
     }
@@ -138,7 +144,6 @@ def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
 
     pan_net_encoder_by_enum = {
         Models.PANNetSENet154: 'senet154',
-        Models.PANNetVGG19BN: 'vgg19_bn',
         Models.PANNetXception: 'tu-xception71',
     }
 

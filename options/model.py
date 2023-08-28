@@ -10,6 +10,7 @@ class Models(Enum):
     TransFuse = 'transfuse'
     TransFusePlusPlus = 'transfuse++'
     MTUnet3Plus = 'mt-unet3+'
+    TransAttentionUnet = 'trans-att-unet'
     MTUnetCustom = 'mt-unet-custom'
     NestedUnet = 'nested-unet'
     UNet3Plus = 'unet3+'
@@ -35,7 +36,9 @@ class Models(Enum):
     UNetPlusPlusInceptionResNetv2 = 'unet++_inception-resnet-v2'
     UNetPlusPlusVGG19BN = 'unet++_vgg-19-bn'
     UNetPlusPlusXception = 'unet++_xception'
+    UNetPlusPlusEfficientNet = 'unet++_efficientnet'
 
+    UNetEfficientNet = 'unet_efficientnet'
     UNetSENet154 = 'unet_senet-154'
     UNetInceptionResNetv2 = 'unet_inception-resnet-v2'
     UNetVGG19BN = 'unet_vgg-19-bn'
@@ -43,12 +46,12 @@ class Models(Enum):
     UNetMixedTransformer = 'unet_mt'
 
     MANetSENet154 = 'ma-net_senet-154'
-    MANetInceptionResNetv2 = 'ma-net_inception-resnet-v2'
+    MANetInceptionResNetV2 = 'ma-net_inception-resnet-v2'
     MANetXception = 'ma-net_xception'
     MANetMixedTransformer = 'ma-net_mt'
 
     PANNetSENet154 = 'pan_senet-154'
-    PANNetVGG19BN = 'pan_vgg-19-bn'
+    PANMobileVITV2 = 'pan_mobilevit-v2-200'
     PANNetXception = 'pan_xception'
 
     def __str__(self):
