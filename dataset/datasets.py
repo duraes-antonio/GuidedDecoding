@@ -12,7 +12,18 @@ from reproducibility import set_seed_worker
 Preparation of dataloaders for Datasets
 """
 
-DatasetSplitOptions = Literal['train', 'test']
+DatasetSplitOptions = Literal["train", "test"]
+
+
+def get_dataset(
+        path: str,
+        split: DatasetSplitOptions,
+        resolution: Resolutions = Resolutions.Full,
+        uncompressed=False,
+):
+    return get_NYU_dataset(
+        path, split, resolution=resolution, uncompressed=uncompressed
+    )
 
 
 def get_dataloader(
@@ -22,10 +33,12 @@ def get_dataloader(
         resolution: Resolutions = Resolutions.Full,
         batch_size=4,
         workers=0,
-        uncompressed=False
+        uncompressed=False,
 ):
-    if dataset_name == 'nyu_reduced':
-        dataset = get_NYU_dataset(path, split, resolution=resolution, uncompressed=uncompressed)
+    if dataset_name == "nyu_reduced":
+        dataset = get_NYU_dataset(
+            path, split, resolution=resolution, uncompressed=uncompressed
+        )
 
     else:
         raise Exception(f"Dataset not existent: '{dataset_name}'")
@@ -35,7 +48,7 @@ def get_dataloader(
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=(split == 'train'),
+        shuffle=(split == "train"),
         num_workers=workers,
         pin_memory=True,
         worker_init_fn=set_seed_worker,

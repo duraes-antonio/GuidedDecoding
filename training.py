@@ -13,7 +13,7 @@ from model import loader
 from util.data import unpack_and_move
 
 max_depths = {
-    'nyu_reduced': 10.0,
+    "nyu_reduced": 10.0,
 }
 
 
@@ -32,40 +32,40 @@ class Trainer:
         self.val_losses = []
         self.max_epochs = args.num_epochs
         self.maxDepth = max_depths[args.dataset]
-        print('Maximum Depth of Dataset: {}'.format(self.maxDepth))
+        print("Maximum Depth of Dataset: {}".format(self.maxDepth))
         self.device = DEVICE
 
         # Initialize the dataset and the dataloader
-        self.model = loader.load_model(
-            args.model, False, resolution=args.resolution,
-            trans_unet_config=args.vit_config
-        )
+        self.model = loader.load_model(False)
         self.model.to(self.device)
         self.train_loader = datasets.get_dataloader(
-            args.dataset, path=args.data_path, split='train',
-            batch_size=args.batch_size, resolution=args.resolution,
-            workers=args.num_workers
+            args.dataset,
+            path=args.data_path,
+            split="train",
+            batch_size=args.batch_size,
+            resolution=args.resolution,
+            workers=args.num_workers,
         )
         self.optimizer = optim.Adam(self.model.parameters(), args.learning_rate)
         self.lr_scheduler = optim.lr_scheduler.StepLR(
             self.optimizer, args.scheduler_step_size, gamma=0.1
         )
 
-        if args.eval_mode == 'alhashim':
+        if args.eval_mode == "alhashim":
             self.loss_func = DepthLoss(0.1, 1, 1, max_depth=self.maxDepth)
         else:
             self.loss_func = DepthLoss(1, 0, 0, max_depth=self.maxDepth)
 
         # Load Checkpoint
-        if args.load_checkpoint != '':
+        if args.load_checkpoint != "":
             self.load_checkpoint(args.load_checkpoint)
 
     def train(self):
         torch.cuda.empty_cache()
 
         for self.epoch in range(self.epoch, self.max_epochs):
-            current_time = time.strftime('%H:%M', time.localtime())
-            print('{} - Epoch {}'.format(current_time, self.epoch))
+            current_time = time.strftime("%H:%M", time.localtime())
+            print("{} - Epoch {}".format(current_time, self.epoch))
             self.train_loop()
             self.save_checkpoint()
 
@@ -96,49 +96,55 @@ class Trainer:
             average_meter.update(result, gpu_time, data_time, image.size(0))
 
         # Report
-        time.strftime('%H:%M', time.localtime())
+        time.strftime("%H:%M", time.localtime())
         average_loss = accumulated_loss / (len(self.train_loader.dataset) + 1)
         avg = average_meter.average()
         print(
-            '\n*\n'
-            'Average Training Loss: {average_loss:3.4f}\n'
-            'RMSE={average.rmse:.3f}\n'
-            'MAE={average.mae:.3f}\n'
-            'Delta1={average.delta1:.3f}\n'
-            'Delta2={average.delta2:.3f}\n'
-            'Delta3={average.delta3:.3f}\n'
-            'REL={average.absrel:.3f}\n'
-            'Lg10={average.lg10:.3f}\n'
-            't_GPU={time:.3f}\n'.format(average=avg, time=avg.gpu_time, average_loss=average_loss)
+            "\n*\n"
+            "Average Training Loss: {average_loss:3.4f}\n"
+            "RMSE={average.rmse:.3f}\n"
+            "MAE={average.mae:.3f}\n"
+            "Delta1={average.delta1:.3f}\n"
+            "Delta2={average.delta2:.3f}\n"
+            "Delta3={average.delta3:.3f}\n"
+            "REL={average.absrel:.3f}\n"
+            "Lg10={average.lg10:.3f}\n"
+            "t_GPU={time:.3f}\n".format(
+                average=avg, time=avg.gpu_time, average_loss=average_loss
+            )
         )
 
     def load_checkpoint(self, checkpoint_path):
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-        self.epoch = checkpoint['epoch']
+        self.model.load_state_dict(checkpoint["model"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
+        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        self.epoch = checkpoint["epoch"]
 
     def save_checkpoint(self):
         # Save checkpoint for training
-        checkpoint_dir = os.path.join(self.checkpoint_pth, 'checkpoint_{}.pth'.format(self.epoch))
+        checkpoint_dir = os.path.join(
+            self.checkpoint_pth, "checkpoint_{}.pth".format(self.epoch)
+        )
         to_save = {
-            'epoch': self.epoch + 1,
-            'val_losses': self.val_losses,
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'lr_scheduler': self.lr_scheduler.state_dict(),
+            "epoch": self.epoch + 1,
+            "val_losses": self.val_losses,
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "lr_scheduler": self.lr_scheduler.state_dict(),
         }
         torch.save(to_save, checkpoint_dir)
-        current_time = time.strftime('%H:%M', time.localtime())
-        print('{} - Model saved'.format(current_time))
+        current_time = time.strftime("%H:%M", time.localtime())
+        print("{} - Model saved".format(current_time))
 
     def save_model(self):
-        best_checkpoint_pth = os.path.join(self.checkpoint_pth, f'checkpoint_{self.max_epochs - 1}.pth')
-        best_model_pth = os.path.join(self.results_pth, 'best_model.pth')
+        best_checkpoint_pth = os.path.join(
+            self.checkpoint_pth, f"checkpoint_{self.max_epochs - 1}.pth"
+        )
+        best_model_pth = os.path.join(self.results_pth, "best_model.pth")
         checkpoint = torch.load(best_checkpoint_pth)
-        torch.save(checkpoint['model'], best_model_pth)
-        print('Model saved.')
+        torch.save(checkpoint["model"], best_model_pth)
+        print("Model saved.")
 
     def inverse_depth_norm(self, depth):
         zero_mask = depth == 0.0
@@ -156,6 +162,7 @@ class Trainer:
 
     def show_images(self, image, gt, pred):
         import matplotlib.pyplot as plt
+
         image_np = image[0].cpu().permute(1, 2, 0).numpy()
         gt[0, 0, gt[0, 0] == 100.0] = 0.1
         plt.imshow(image_np)

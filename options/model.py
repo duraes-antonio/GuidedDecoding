@@ -38,6 +38,14 @@ class Models(Enum):
     UNetPlusPlusXception = 'unet++_xception'
     UNetPlusPlusEfficientNet = 'unet++_efficientnet'
 
+    UNet3PlusEfficientNet = 'unet3+_efficientnet'
+    UNet3PlusSENet154 = 'unet3+_senet-154'
+    UNet3PlusResNet50 = 'unet3+_resnet-50'
+    UNet3PlusInceptionResNetv2 = 'unet3+_inception-resnet-v2'
+    UNet3PlusVGG19BN = 'unet3+_vgg-19-bn'
+    UNet3PlusXception = 'unet3+_xception'
+    UNet3PlusMixedTransformer = 'unet3+_mt'
+
     UNetEfficientNet = 'unet_efficientnet'
     UNetSENet154 = 'unet_senet-154'
     UNetInceptionResNetv2 = 'unet_inception-resnet-v2'

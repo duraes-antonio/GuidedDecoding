@@ -9,12 +9,12 @@ class LuizResNetEncoder(nn.Module):
         encoder_layers = [
             resnet101.conv1,
             resnet101.bn1,
-            resnet101.relu,
+            resnet101.fn_activation,
             resnet101.maxpool,
             resnet101.layer1,
             resnet101.layer2,
             resnet101.layer3,
-            resnet101.layer4
+            resnet101.layer4,
         ]
         self.encoder = nn.Sequential(*encoder_layers)
 

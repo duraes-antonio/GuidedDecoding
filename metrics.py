@@ -9,10 +9,11 @@ import math
 
 import numpy as np
 import torch
+from torch import Tensor
 
 
 def log10(x):
-    """Convert a new tensor with the base-10 logarithm of the elements of x. """
+    """Convert a new tensor with the base-10 logarithm of the elements of x."""
     return torch.log(x) / math.log(10)
 
 
@@ -34,9 +35,20 @@ class Result(object):
         self.data_time, self.gpu_time = 0, 0
 
     def update(
-            self, irmse, imae, mse, rmse,
-            rmse_log, mae, absrel, lg10,
-            delta1, delta2, delta3, gpu_time, data_time
+            self,
+            irmse,
+            imae,
+            mse,
+            rmse,
+            rmse_log,
+            mae,
+            absrel,
+            lg10,
+            delta1,
+            delta2,
+            delta3,
+            gpu_time,
+            data_time,
     ):
         self.irmse, self.imae = irmse, imae
         self.mse, self.rmse, self.mae = mse, rmse, mae
@@ -115,10 +127,28 @@ class AverageMeter(object):
     def average(self):
         avg = Result()
         avg.update(
-            self.sum_irmse / self.count, self.sum_imae / self.count,
-            self.sum_mse / self.count, self.sum_rmse / self.count, self.sum_mae / self.count,
-            self.sum_rmse_log / self.count, self.sum_absrel / self.count, self.sum_lg10 / self.count,
-            self.sum_delta1 / self.count, self.sum_delta2 / self.count, self.sum_delta3 / self.count,
-            self.sum_gpu_time / self.count, self.sum_data_time / self.count
+            self.sum_irmse / self.count,
+            self.sum_imae / self.count,
+            self.sum_mse / self.count,
+            self.sum_rmse / self.count,
+            self.sum_mae / self.count,
+            self.sum_rmse_log / self.count,
+            self.sum_absrel / self.count,
+            self.sum_lg10 / self.count,
+            self.sum_delta1 / self.count,
+            self.sum_delta2 / self.count,
+            self.sum_delta3 / self.count,
+            self.sum_gpu_time / self.count,
+            self.sum_data_time / self.count,
         )
         return avg
+
+
+class D1Loss(torch.nn.Module):
+    def __call__(self, output: Tensor, depth: Tensor) -> float:
+        return calculate_delta_1(output, depth)
+
+
+def calculate_delta_1(output, target) -> float:
+    max_ratio = torch.max(output / target, target / output)
+    return float((max_ratio < 1.25).float().mean())
