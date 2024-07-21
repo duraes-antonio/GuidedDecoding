@@ -1,4 +1,4 @@
-from metrics import Result
+from metrics.metrics_depth import Result
 
 
 def print_metrics(results: Result) -> None:

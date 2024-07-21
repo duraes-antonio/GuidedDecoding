@@ -8,7 +8,7 @@ from tqdm import tqdm
 from config import DEVICE
 from dataset import datasets
 from dataset import transforms
-from metrics import AverageMeter, Result
+from metrics.metrics_depth import AverageMeter, Result
 from model import loader
 from options.dataset_resolution import shape_by_resolution
 from util.data import unpack_and_move
@@ -47,7 +47,7 @@ class Evaluater:
             os.mkdir(self.result_dir)
 
         self.device = DEVICE
-        self.model = loader.load_model(True, args.weights_path)
+        self.model = loader.load_model(args.model, args.weights_path is not None, args.weights_path, eval=True)
         self.model.to(self.device)
         self.test_loader = datasets.get_dataloader(
             args.dataset,

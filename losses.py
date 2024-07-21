@@ -10,6 +10,7 @@ https://github.com/ialhashim/DenseDepth
 from math import exp
 
 import torch
+from torch import Tensor
 from torch.nn import functional
 
 
@@ -121,3 +122,12 @@ class DepthLoss:
             return ret, cs
 
         return ret
+
+
+def dice_loss(prediction: Tensor, target: Tensor) -> Tensor:
+    smooth = 1e-6
+    input_flat = prediction.view(-1)
+    target_flat = target.view(-1)
+    intersection = (input_flat * target_flat).sum()
+    dice = (2. * intersection + smooth) / (input_flat.sum() + target_flat.sum() + smooth)
+    return torch.tensor(1 - dice)

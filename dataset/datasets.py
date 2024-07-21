@@ -34,6 +34,7 @@ def get_dataloader(
         batch_size=4,
         workers=0,
         uncompressed=False,
+        shuffle=True,
 ):
     if dataset_name == "nyu_reduced":
         dataset = get_NYU_dataset(
@@ -48,9 +49,10 @@ def get_dataloader(
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=(split == "train"),
+        shuffle=shuffle,
         num_workers=workers,
         pin_memory=True,
         worker_init_fn=set_seed_worker,
         generator=dataloader_generator,
     )
+

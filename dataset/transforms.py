@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import random
-from typing import TypedDict
+from typing import TypedDict, Tuple
 
 import numpy as np
 import torch
+import torchvision
 from PIL import Image
 from PIL.Image import Image as PILImage
+from torch import Tensor
 from torchvision import transforms
+
+from options.dataset_resolution import Resolutions
 
 
 class PairDepth(TypedDict):
@@ -76,6 +82,35 @@ class RandomChannelSwap(object):
                 image[..., list(self.indices[random.randint(0, len(self.indices) - 1)])]
             )
         return {"image": image, "depth": depth}
+
+
+class PairToDict(object):
+
+    def __call__(self, pair: Tuple[Tensor, Tensor] | PairTensor) -> PairTensor:
+        if not isinstance(pair, tuple):
+            return {"image": pair["image"], "depth": pair["depth"]}
+        return {"image": pair[0], "depth": pair[1]}
+
+
+class UnsqueezeDict(object):
+
+    def __call__(self, pair: PairTensor) -> PairTensor:
+        return {
+            "image": pair['image'].unsqueeze(0),
+            "depth": pair['depth'].unsqueeze(0)
+        }
+
+
+class ResizeOnlyImage(object):
+    def __init__(self, resolution: Tuple[int, int]):
+        self.resolution = resolution
+
+    def __call__(self, pair: PairTensor) -> PairTensor:
+        resize = torchvision.transforms.Resize(self.resolution)
+        return {
+            "image": resize(pair['image']),
+            "depth": pair['depth']
+        }
 
 
 class ToTensor(object):

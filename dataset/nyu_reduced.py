@@ -25,8 +25,8 @@ class DepthDataset(Dataset):
     def __getitem__(self, idx):
         sample = self.data[idx]
         sample = (
-            sample[0].replace("./", "/home/x/Área de Trabalho/seg_depth/"),
-            sample[1].replace("./", "/home/x/Área de Trabalho/seg_depth/"),
+            sample[0].replace("./", "/home/antonio/Área de trabalho/seg_depth/"),
+            sample[1].replace("./", "/home/antonio/Área de trabalho/seg_depth/"),
         )
         image = Image.open(Path(sample[0]))
         depth = Image.open(Path(sample[1]))
@@ -46,28 +46,6 @@ class DepthDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-
-
-class NYU_Testset_Extracted(Dataset):
-    def __init__(self, root, resolution=Resolutions.Full):
-        self.root = root
-        self.resolution = shape_by_resolution[resolution]
-        self.files = os.listdir(self.root)
-
-    def __getitem__(self, index):
-        image_path = os.path.join(self.root, self.files[index])
-
-        data = np.load(image_path)
-        depth, image = data["depth"], data["image"]
-        depth = np.expand_dims(depth, axis=2)
-
-        image, depth = data["image"], data["depth"]
-        image = np.array(image)
-        depth = np.array(depth)
-        return image, depth
-
-    def __len__(self):
-        return len(self.files)
 
 
 class NYU_Testset(Dataset):
@@ -102,6 +80,17 @@ def train_transform(resolution: Tuple[int, int]):
     return transform
 
 
+def test_transform(resolution: Tuple[int, int], max_depth=10.0):
+    import torchvision
+    crop = [20, 460, 24, 616]
+    downscale_image = torchvision.transforms.Resize(resolution)
+    to_tensor = ToTensor(test=True, max_depth=max_depth)
+    return transforms.Compose(
+        [
+        ]
+    )
+
+
 def val_transform(resolution):
     transform = transforms.Compose(
         [Resize(resolution), ToTensor(test=True, max_depth=10.0)]
@@ -116,20 +105,13 @@ def get_NYU_dataset(
 
     if split != "test":
         data = read_nyu_csv(data_path)
-        data_count = len(data)
-        percent_to_use = 1
-        shuffle(data)
-        data = data[: int(data_count * percent_to_use)]
 
         if split == "train":
             transform = train_transform(final_size)
             return DepthDataset(data, split, transform=transform)
 
     elif split == "test":
-        if uncompressed:
-            dataset = NYU_Testset_Extracted(data_path)
-        else:
-            dataset = NYU_Testset(data_path)
+        dataset = NYU_Testset(data_path)
 
     return dataset
 
