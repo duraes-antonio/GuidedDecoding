@@ -1,14 +1,12 @@
 import argparse
 import os
 
-from config import SEED
-from dataset import datasets
-from dataset.datasets import get_dataset
+from util.config import SEED
 from evaluate import Evaluater
 from model.trans_unet.vit_seg_modeling import TransUnetConfigType
 from options.dataset_resolution import Resolutions
 from options.model import Models
-from reproducibility import set_all_lib_seed
+from util.reproducibility import set_all_lib_seed
 from training import Trainer
 
 

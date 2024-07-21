@@ -7,7 +7,7 @@ import torch
 import torchvision
 from torch2trt import torch2trt
 
-from config import DEVICE
+from util.config import DEVICE
 from data import transforms
 from dataset.datasets import get_dataloader
 from metrics import AverageMeter, Result

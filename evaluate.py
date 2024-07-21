@@ -5,10 +5,10 @@ import torch
 import torchvision
 from tqdm import tqdm
 
-from config import DEVICE
+from util.config import DEVICE
 from dataset import datasets
 from dataset import transforms
-from metrics.metrics_depth import AverageMeter, Result
+from depth.metrics import AverageMeter, Result
 from model import loader
 from options.dataset_resolution import shape_by_resolution
 from util.data import unpack_and_move

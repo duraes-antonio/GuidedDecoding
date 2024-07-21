@@ -1,6 +1,6 @@
 import os
 import time
-from typing import List, OrderedDict
+from typing import OrderedDict
 
 import torch
 import torch.optim as optim
@@ -8,10 +8,10 @@ from torch import nn
 from torchinfo import summary
 from tqdm import tqdm
 
-from config import DEVICE
+from util.config import DEVICE
 from dataset import datasets
-from losses import DepthLoss
-from metrics.metrics_depth import AverageMeter, Result
+from depth.losses import DepthLoss
+from depth.metrics import AverageMeter, Result
 from model import loader
 from util.data import unpack_and_move
 

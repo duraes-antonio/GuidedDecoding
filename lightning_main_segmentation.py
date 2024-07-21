@@ -9,7 +9,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils import data
 from torch.utils.data import DataLoader
 
-from config import SEED
+from util.config import SEED
 from model import loader
 from options.dataset_resolution import Resolutions
 from options.model import Models

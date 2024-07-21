@@ -16,8 +16,8 @@ from dataset.nyu import read_nyu_csv, NyuDataset, NyuNumpyZipDataset, train_tran
 
 torch.set_float32_matmul_precision('medium')
 
-from config import SEED
-from losses import DepthLoss
+from util.config import SEED
+from depth.losses import DepthLoss
 from model import loader
 from options.dataset_resolution import Resolutions, shape_by_resolution
 from options.model import Models

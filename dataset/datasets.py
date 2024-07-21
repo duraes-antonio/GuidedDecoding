@@ -3,10 +3,10 @@ from typing import Literal
 import torch
 from torch.utils.data import DataLoader
 
-from config import SEED
+from util.config import SEED
 from dataset.nyu_reduced import get_NYU_dataset
 from options.dataset_resolution import Resolutions
-from reproducibility import set_seed_worker
+from util.reproducibility import set_seed_worker
 
 """
 Preparation of dataloaders for Datasets
