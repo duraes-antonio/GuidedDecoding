@@ -22,13 +22,12 @@ from options.model import Models
 
 
 def load_model(
-        model: Models, load_weights=False,
-        path_weights='results/best_model.pth',
+        model: Models,
         resolution=Resolutions.Half,
         trans_unet_config: TransUnetConfigType = TransUnetConfigType.r50_vit_b16,
-        num_classes=1, eval=False, useImageNetWeights=True
+        num_classes=1, use_imagenet_weights=True
 ):
-    model_instance = get_segmentation_models(model, num_classes, useImageNetWeights)
+    model_instance = get_segmentation_models(model, num_classes, use_imagenet_weights)
 
     if model == Models.UNet3Plus:
         model_instance = UNet_3Plus()
@@ -91,20 +90,6 @@ def load_model(
                 int(img_size / vit_patches_size), int(img_size / vit_patches_size))
         model_instance = VisionTransformer(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
         model_instance.load_from(weights=np.load(config_vit.pretrained_path))
-
-
-    if eval and load_weights:
-        l: OrderedDict = torch.load(path_weights)
-        l['segmentation_head.0.weight'] = l['segmentation_head.0.0.weight']
-        l['segmentation_head.0.bias'] = l['segmentation_head.0.0.bias']
-        del l['segmentation_head.0.0.weight']
-        del l['segmentation_head.0.0.bias']
-        model_instance.load_state_dict(l)
-        print("EVAL and Weights loaded from: ", path_weights)
-
-    elif load_weights:
-        model_instance.load_state_dict(torch.load(path_weights))
-        print("Weights loaded from: ", path_weights)
 
     return model_instance
 

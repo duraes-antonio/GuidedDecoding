@@ -41,7 +41,7 @@ class Trainer:
         # Initialize the dataset and the dataloader
         self.model: nn.Module = loader.load_model(
             args.model, args.weights_path is not None, args.weights_path, resolution=args.resolution,
-            trans_unet_config=args.vit_config, num_classes=19, useImageNetWeights=True
+            trans_unet_config=args.vit_config, num_classes=19, use_imagenet_weights=True
         )
         self.model.to(self.device)
         self.train_loader = datasets.get_dataloader(

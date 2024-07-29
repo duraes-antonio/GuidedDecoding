@@ -33,4 +33,4 @@ def get_metrics(ground_truth: Tensor, prediction: Tensor) -> Dict[str, float]:
     return result_gm_sh
 
 def get_metrics_lightning(params: CalculateMetricsParams) -> Dict[str, float]:
-    return get_metrics(params['depth'], params['prediction'])
+    return get_metrics(params['ground_truth'], params['prediction'])

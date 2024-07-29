@@ -1,132 +1,46 @@
-import math
 import os
+import random
 from pathlib import Path
-from typing import Dict, Literal
+from typing import Literal, Optional
 
 import click
 import torch
-import torchvision
-from lightning import seed_everything, Trainer
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning import seed_everything
 from lightning.pytorch.loggers import TensorBoardLogger
-from torch import Tensor, nn
-from torch.utils.data import DataLoader, random_split
+from torch import nn
+from torch.nn import ModuleList
+from torch.optim import Adam
+from torch.optim.lr_scheduler import StepLR
+from torchinfo import summary
 
-from dataset.nyu import read_nyu_csv, NyuDataset, NyuNumpyZipDataset, train_transform, test_transform
+from depth.losses import DepthLoss
+from depth.model_loader import ModelLoader
+from depth.runners import run_test, run_train
+from model import loader
+from options.dataset_resolution import Resolutions
+from options.model import Models
+from options.task import Task
+from util.config import SEED, DEVICE
 
 torch.set_float32_matmul_precision('medium')
 
-from util.config import SEED
-from depth.losses import DepthLoss
-from model import loader
-from options.dataset_resolution import Resolutions, shape_by_resolution
-from options.model import Models
-from segmentation.runner import LightningSegmentationRunner, CalculateMetricsParams
 
-
-def save_checkpoint(epoch, model, optimizer, lr_scheduler, checkpoint_pth):
+def save_checkpoint(model, optimizer, lr_scheduler, checkpoint_pth, filename: str):
     if not os.path.isdir(checkpoint_pth):
         os.mkdir(checkpoint_pth)
 
     # Save checkpoint for training
     checkpoint_dir = os.path.join(
-        checkpoint_pth, "checkpoint_{}.pth".format(epoch)
+        checkpoint_pth, filename + '.pth'
     )
     to_save = {
-        "epoch": epoch + 1,
-        "val_losses": 1,
         "model": model.cuda().state_dict(),
         "optimizer": optimizer.state_dict(),
         "lr_scheduler": lr_scheduler.state_dict(),
     }
     torch.save(to_save, checkpoint_dir)
-
-
-def save_model(max_epochs, checkpoint_pth, results_pth):
-    if not os.path.isdir(results_pth):
-        os.mkdir(results_pth)
-
-    best_checkpoint_pth = os.path.join(
-        checkpoint_pth, f"checkpoint_{max_epochs - 1}.pth"
-    )
-    best_model_pth = os.path.join(results_pth, "best_model.pth")
-    checkpoint = torch.load(best_checkpoint_pth)
-    torch.save(checkpoint["model"], best_model_pth)
-
-
-def log10(x: Tensor):
-    return torch.log(x) / math.log(10)
-
-
-def calculate_metrics(prediction: Tensor, depth: Tensor) -> Dict[str, float]:
-    abs_diff = (prediction - depth).abs()
-    mse = float((torch.pow(abs_diff, 2)).mean())
-    rmse = math.sqrt(mse)
-    mae = float(abs_diff.mean())
-    l1_fn = nn.L1Loss()
-    l1 = float(l1_fn(prediction, depth))
-    lg10 = float((log10(prediction) - log10(depth)).abs().mean())
-    absrel = float((abs_diff / depth).mean())
-
-    max_ratio = torch.max(prediction / depth, depth / prediction)
-    delta1 = float((max_ratio < 1.25).float().mean())
-    delta2 = float((max_ratio < 1.25 ** 2).float().mean())
-    delta3 = float((max_ratio < 1.25 ** 3).float().mean())
-
-    return {
-        "rmse": rmse,
-        "mae": mae,
-        "absrel": absrel,
-        "lg10": lg10,
-        "d1": delta1,
-        "d2": delta2,
-        "d3": delta3,
-    }
-
-
-def calculate_train_metrics(params: CalculateMetricsParams) -> Dict[str, float]:
-    prediction = params['prediction']
-    depth = params['depth']
-    return calculate_metrics(prediction, depth)
-
-
-def get_calc_test_metrics_fn(resolution: Resolutions):
-    def inverse_depth_norm(depth: Tensor, max_depth=10.0):
-        depth = max_depth / depth
-        depth = torch.clamp(depth, max_depth / 100, max_depth)
-        return depth
-
-    def calculate_test_metrics(params: CalculateMetricsParams) -> Dict[str, float]:
-        prediction = params['prediction']
-        gt = params['depth']
-        image = params['image']
-        model = params['model']
-        crop = [20, 460, 24, 616]
-        size = shape_by_resolution[resolution]
-        resizer = torchvision.transforms.Resize(size)
-
-        gt_flip = torch.flip(gt, [3])
-        image_flip = torch.flip(image, [3])
-        image_flip = resizer(image_flip)
-
-        prediction = inverse_depth_norm(prediction)
-        prediction_flip = inverse_depth_norm(model(image_flip))
-
-        resize_to_gt_size = torchvision.transforms.Resize(gt.shape[-2:])
-        prediction = resize_to_gt_size(prediction)
-        prediction_flip = resize_to_gt_size(prediction_flip)
-
-        gt = gt[:, :, crop[0]: crop[1], crop[2]: crop[3]]
-        gt_flip = gt_flip[:, :, crop[0]: crop[1], crop[2]: crop[3]]
-        prediction = prediction[:, :, crop[0]: crop[1], crop[2]: crop[3]]
-        prediction_flip = prediction_flip[:, :, crop[0]: crop[1], crop[2]: crop[3]]
-
-        result = calculate_metrics(prediction, gt)
-        result_flip = calculate_metrics(prediction_flip, gt_flip)
-        metrics = result.keys()
-        return {metric: (result[metric] + result_flip[metric]) / 2 for metric in metrics}
-
-    return calculate_test_metrics
+    checkpoint = torch.load(checkpoint_dir)
+    torch.save(checkpoint["model"], checkpoint_dir.replace('.pth', '_model.pth'))
 
 
 RunModes = ['train', 'test']
@@ -166,17 +80,6 @@ RunModes = ['train', 'test']
     default="checkpoints/checkpoints_depth/",
 )
 @click.option(
-    "-msp",
-    "--model_save_path",
-    type=click.Path(
-        exists=False,
-        file_okay=False,
-        readable=False,
-        path_type=Path,
-    ),
-    default="models_depth/",
-)
-@click.option(
     "-tdp",
     "--train_data_path",
     type=click.Path(
@@ -198,190 +101,152 @@ RunModes = ['train', 'test']
     ),
     default="NYU_Testset.zip",
 )
+@click.option(
+    "-rd",
+    "--run_directory",
+    type=click.Path(
+        exists=False,
+        file_okay=False,
+        readable=False,
+        path_type=Path,
+    ),
+)
+@click.option(
+    "-mf",
+    "--model_filename",
+    type=click.STRING,
+)
+@click.option(
+    "-du",
+    "--dataset_usage",
+    type=click.IntRange(1, 100),
+    default=100
+)
 def main(
         max_epochs: int,
         batch_size: int,
         num_workers: int,
         size: Resolutions,
-        checkpoint_load_path: Path,
+        checkpoint_load_path: Optional[Path],
         checkpoint_save_path: Path,
-        model_save_path: Path,
         train_data_path: Path,
         test_data_path: Path,
-        mode: Literal['train', 'test']
+        run_directory: Path,
+        model_filename: Optional[str],
+        mode: Literal['train', 'test'],
+        dataset_usage: int = 100
 ):
     seed_everything(seed=SEED, workers=True)
     percent_to_train = 90
     max_depth = 10.0
 
-    if not os.path.isdir(checkpoint_save_path):
-        os.mkdir(checkpoint_save_path)
+    if run_directory is None:
+        raise ValueError("run_directory must be provided")
 
-    if not os.path.isdir(model_save_path):
-        os.mkdir(model_save_path)
-
-    log_dir = f'results_depth_logs/'
-    loggers = [TensorBoardLogger(log_dir)]
-
+    run_directory = str(run_directory)
+    checkpoint_load_path = str(checkpoint_load_path) if checkpoint_load_path else ''
+    from_task = Task.SEGMENTATION if 'segmentation' in checkpoint_load_path else Task.DEPTH
     size = Resolutions(size)
-    final_size = shape_by_resolution[size]
     loss_function = DepthLoss(0.1, 1, 1, max_depth=max_depth)
 
-    if mode == 'train':
-        train_paths = read_nyu_csv(str(train_data_path))
-        transform_train = train_transform(final_size)
-        train_dataset = NyuDataset(
-            pairs_path=train_paths,
-            transform=transform_train,
-            split='train',
-        )
+    load_model_hardcoded = False
 
-        train_val_set_size = len(train_dataset)
-        train_set_size = int(train_val_set_size * percent_to_train / 100)
-        valid_set_size = train_val_set_size - train_set_size
+    if load_model_hardcoded:
+        print('Loading HARDCODED model')
+        scheduler_step_size = 15
+        learning_rate = 1e-4
+        model = loader.load_model(Models.UNetMixedTransformer, size, num_classes=19)
+        model.load_state_dict(torch.load(checkpoint_load_path))
 
-        seed = torch.Generator().manual_seed(SEED)
-        train_subset, valid_subset = random_split(
-            train_dataset,
-            [train_set_size, valid_set_size],
-            generator=seed
-        )
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=batch_size,
-            shuffle=True,
-            num_workers=num_workers,
-        )
-        valid_loader = DataLoader(
-            valid_subset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
-        # model = loader.load_model(
-        #     Models.UNetMixedTransformer, False, resolution=size,
-        #     num_classes=1,
-        # )
-
-        # Carregar model treinado em segmentação
-        model = loader.load_model(
-            Models.UNetMixedTransformer, False, resolution=size,
-            num_classes=19,
-        )
-        checkpoint = torch.load(checkpoint_load_path, map_location=torch.device('cuda'))
-        model_state = checkpoint['state_dict']
-        model_state = {k.replace("model.", ""): v for k, v in model_state.items()}
-        # model.load_state_dict(model_state)
-        encoder_weights = {
-            k.replace("encoder.", ""): v
-            for k, v in model_state.items()
-            if k.startswith("encoder.")
-        }
-        decoder_weights = {
-            k.replace("decoder.", ""): v
-            for k, v in model_state.items()
-            if k.startswith("decoder.")
-        }
-        model.encoder.load_state_dict(encoder_weights)
-        model.decoder.load_state_dict(decoder_weights)
-
-        lightning_train_model = LightningSegmentationRunner(
-            model=model,
-            criterion=loss_function,
-            get_metrics=calculate_train_metrics,
-            checkpoint=checkpoint,
-        )
-        model.segmentation_head[0] = nn.Sequential(
+        new_last_layer = nn.Sequential(
             nn.Conv2d(16, 1, (3, 3), (1, 1), (1, 1)),
-        ).cuda()
+        ).to(DEVICE)
+        model.segmentation_head[0] = new_last_layer
 
-        randint = str(torch.randint(0, 1000, (1,)).item())
-        callbacks = [
-            # FinetuningScheduler(ft_schedule="results_depth_logs/lightning_logs/version_45"
-            #                                 "/LightningSegmentationRunner_ft_schedule_test.yaml"),
-            EarlyStopping(monitor='val_loss', mode='min', patience=10, verbose=True),
-            ModelCheckpoint(
-                monitor='train_loss',
-                dirpath='models_depth/',
-                filename='_'.join([f'size-{size}', '{epoch}-epochs', 'data-aug', randint]),
-                mode='min',
-            )
-        ]
-        train_trainer = Trainer(
-            callbacks=callbacks,
-            max_epochs=max_epochs,
-            log_every_n_steps=5,
-            logger=loggers,
-        )
-        train_trainer.fit(lightning_train_model, train_loader, valid_loader)
-        print('_'.join([f'size-{size}', '{epoch}-epochs', 'data-aug', randint]))
+        optimizer = Adam(model.parameters(), learning_rate)
+        scheduler = StepLR(optimizer, scheduler_step_size, 0.1)
 
-        transform_test = test_transform(final_size)
-        test_dataset = NyuNumpyZipDataset(
-            zip_path=str(test_data_path),
-            transform=transform_test,
+    else:
+        print('Loading model using LOADER')
+        model_loader = ModelLoader(
+            target_model=Models.UNetMixedTransformer,
+            resolution=size,
+            checkpoint_load_path=checkpoint_load_path,
+            from_task=from_task,
+            to_task=Task.DEPTH
         )
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=1,
-            num_workers=1,
-            shuffle=False
+        model = model_loader.model
+        optimizer = model_loader.optimizer
+        scheduler = model_loader.scheduler
+
+    chance_to_freeze = 0.7
+    should_freeze = True
+
+    def freeze_random_blocks(x):
+        for blocks in x.children():
+            if isinstance(blocks, ModuleList):
+                for ml in blocks:
+                    freeze = random.random() < chance_to_freeze
+                    for p in ml.parameters():
+                        p.requires_grad = not freeze
+            else:
+                freeze = random.random() < chance_to_freeze
+                blocks.requires_grad = not freeze
+
+    def freeze(module: nn.Module):
+        for p in module.parameters():
+            p.requires_grad = not freeze
+
+    if should_freeze:
+        freeze(model.encoder.block3)
+        # freeze(model.encoder.norm1)
+        # freeze(model.encoder.patch_embed1)
+        freeze(model.encoder.block4)
+        # freeze(model.encoder.norm2)
+        # freeze(model.encoder.patch_embed2)
+        summary(
+            model=model,
+            input_size=(32, 3, 224, 224),
+            col_names=["input_size", "output_size", "num_params", "trainable"],
+            col_width=20,
+            row_settings=["var_names"]
         )
-        runner: LightningSegmentationRunner = LightningSegmentationRunner(
-            model=model, criterion=loss_function, get_metrics=get_calc_test_metrics_fn(size), checkpoint=checkpoint
+    optimizer_used = len(optimizer.state) > 0
+    scheduler_used = scheduler.last_epoch > 0
+
+    model_filename_params = [
+        'freeze-b3-b4',
+        f'size-{size.value}',
+        f'ds-usage-{dataset_usage}',
+        f'batch-{batch_size}',
+        f'opt-{int(optimizer_used)}',
+        f'scheduler-{int(scheduler_used)}',
+    ]
+
+    if not checkpoint_load_path:
+        model_filename_params = ['base'] + model_filename_params
+
+    log_root_path = os.path.join('depth', 'logs', run_directory)
+    log_last_dir = '_'.join(model_filename_params)
+
+    auto_model_filename = '_'.join(model_filename_params + ['{epoch}'])
+    model_filename = model_filename or auto_model_filename
+    loggers = [TensorBoardLogger(log_root_path, name=log_last_dir)]
+    run_directory = os.path.join('depth', run_directory)
+
+    if mode == 'train':
+        run_train(
+            model, optimizer, scheduler, loss_function, loggers,
+            train_data_path, size, batch_size, num_workers, max_epochs, percent_to_train,
+            dataset_usage, run_directory, model_filename
         )
-        test_trainer = Trainer(logger=loggers, enable_checkpointing=False)
-        test_trainer.test(model=runner, dataloaders=test_loader)
+        run_test(model, optimizer, scheduler, loggers, test_data_path, size)
+        model_filename = model_filename.replace('{epoch}', str(max_epochs))
+        print(f'\n--> Path to save MODEL: {os.path.join(run_directory, model_filename)}\n')
+        save_checkpoint(model, optimizer, scheduler, run_directory, model_filename)
 
     if mode == 'test':
-        transform_test = test_transform(final_size)
-        test_dataset = NyuNumpyZipDataset(
-            zip_path=str(test_data_path),
-            transform=transform_test,
-        )
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=1,
-            num_workers=1,
-            shuffle=False
-        )
-
-        # Carregar model treinado em segmentação
-        model = loader.load_model(
-            Models.UNetMixedTransformer, False, resolution=size,
-            num_classes=19,
-        )
-        checkpoint = torch.load(checkpoint_load_path, map_location=torch.device('cuda'))
-
-        print(checkpoint['state_dict'].keys())
-        model_state = checkpoint['state_dict']
-        model_state = {k.replace("model.", ""): v for k, v in model_state.items()}
-        model.load_state_dict(model_state)
-
-        # encoder_weights = {
-        #     k: v for k, v in model_state.items() if
-        #     k.startswith("encoder.")
-        # }
-        # decoder_weights = {k: v for k, v in model_state.items() if k.startswith("decoder.")}
-        # model.encoder.load_state_dict(encoder_weights)
-        # model.decoder.load_state_dict(decoder_weights)
-
-        model.segmentation_head[0] = nn.Sequential(
-            nn.Conv2d(16, 1, (3, 3), (1, 1), (1, 1)),
-        ).cuda()
-
-        runner: LightningSegmentationRunner = LightningSegmentationRunner(
-            model=model, criterion=loss_function, get_metrics=get_calc_test_metrics_fn(size), checkpoint=checkpoint
-        )
-        # ev = Evaluater(
-        #     resolution=size,
-        #     model=model.model,
-        #     dataset_path=str(test_data_path),
-        #     num_workers=num_workers,
-        # )
-        # ev.evaluate()
-        test_trainer = Trainer(logger=loggers, enable_checkpointing=False)
-        test_trainer.test(model=runner, dataloaders=test_loader)
+        run_test(model, optimizer, scheduler, loggers, test_data_path, size)
 
     return None
 

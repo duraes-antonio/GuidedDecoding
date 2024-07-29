@@ -6,10 +6,15 @@ Code from FastDepth
     https://github.com/dwofk/fast-depth
 """
 import math
+from typing import Dict
 
 import numpy as np
 import torch
+import torchvision
 from torch import Tensor
+
+from options.dataset_resolution import Resolutions, shape_by_resolution
+from segmentation.runner import CalculateMetricsParams, GetMetrics
 
 
 def log10(x):
@@ -144,11 +149,70 @@ class AverageMeter(object):
         return avg
 
 
-class D1Loss(torch.nn.Module):
-    def __call__(self, output: Tensor, depth: Tensor) -> float:
-        return calculate_delta_1(output, depth)
+def calculate_metrics(prediction: Tensor, depth: Tensor) -> Dict[str, float]:
+    abs_diff = (prediction - depth).abs()
+    mse = float((torch.pow(abs_diff, 2)).mean())
+    rmse = math.sqrt(mse)
+    mae = float(abs_diff.mean())
+    lg10 = float((log10(prediction) - log10(depth)).abs().mean())
+    absrel = float((abs_diff / depth).mean())
+
+    max_ratio = torch.max(prediction / depth, depth / prediction)
+    delta1 = float((max_ratio < 1.25).float().mean())
+    delta2 = float((max_ratio < 1.25 ** 2).float().mean())
+    delta3 = float((max_ratio < 1.25 ** 3).float().mean())
+
+    return {
+        "rmse": rmse,
+        "mae": mae,
+        "absrel": absrel,
+        "lg10": lg10,
+        "d1": delta1,
+        "d2": delta2,
+        "d3": delta3,
+    }
 
 
-def calculate_delta_1(output, target) -> float:
-    max_ratio = torch.max(output / target, target / output)
-    return float((max_ratio < 1.25).float().mean())
+def calculate_train_metrics(params: CalculateMetricsParams) -> Dict[str, float]:
+    prediction = params['prediction']
+    depth = params['ground_truth']
+    return calculate_metrics(prediction, depth)
+
+
+def get_calc_test_metrics_fn(resolution: Resolutions) -> GetMetrics:
+    def inverse_depth_norm(depth: Tensor, max_depth=10.0):
+        depth = max_depth / depth
+        depth = torch.clamp(depth, max_depth / 100, max_depth)
+        return depth
+
+    def calculate_test_metrics(params: CalculateMetricsParams) -> Dict[str, float]:
+        prediction = params['prediction']
+        gt = params['ground_truth']
+        image = params['image']
+        model = params['model']
+        crop = [20, 460, 24, 616]
+        size = shape_by_resolution[resolution]
+        resizer = torchvision.transforms.Resize(size)
+
+        gt_flip = torch.flip(gt, [3])
+        image_flip = torch.flip(image, [3])
+        image_flip = resizer(image_flip)
+
+        prediction = inverse_depth_norm(prediction)
+        prediction_flip = inverse_depth_norm(model(image_flip))
+
+        resize_to_gt_size = torchvision.transforms.Resize(gt.shape[-2:])
+        prediction = resize_to_gt_size(prediction)
+        prediction_flip = resize_to_gt_size(prediction_flip)
+
+        gt = gt[:, :, crop[0]: crop[1], crop[2]: crop[3]]
+        gt_flip = gt_flip[:, :, crop[0]: crop[1], crop[2]: crop[3]]
+        prediction = prediction[:, :, crop[0]: crop[1], crop[2]: crop[3]]
+        prediction_flip = prediction_flip[:, :, crop[0]: crop[1], crop[2]: crop[3]]
+
+        result = calculate_metrics(prediction, gt)
+        result_flip = calculate_metrics(prediction_flip, gt_flip)
+        metrics = result.keys()
+        return {metric: (result[metric] + result_flip[metric]) / 2 for metric in metrics}
+
+    return calculate_test_metrics

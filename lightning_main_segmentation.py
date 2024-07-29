@@ -1,54 +1,45 @@
 import os
 from pathlib import Path
+from typing import Optional, Literal
 
 import click
 import torch
 from lightning import seed_everything, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
 from torch.utils.data import DataLoader
 
-from util.config import SEED
+from lightning_main_depth import RunModes
 from model import loader
 from options.dataset_resolution import Resolutions
 from options.model import Models
 from segmentation.dataset import CityscapesDataset
-from train_segmentation.loss import cross_entropy2d
-from train_segmentation.metrics import get_metrics_lightning
+from segmentation.loss import cross_entropy2d
+from segmentation.metrics import get_metrics_lightning
 from segmentation.runner import LightningSegmentationRunner
+from util.config import SEED
 
 torch.set_float32_matmul_precision('medium')
 
 
-def save_checkpoint(epoch, model, optimizer, lr_scheduler, checkpoint_pth):
+def save_checkpoint(epoch, model, optimizer, lr_scheduler, checkpoint_pth, filename: str):
     if not os.path.isdir(checkpoint_pth):
         os.mkdir(checkpoint_pth)
 
     # Save checkpoint for training
     checkpoint_dir = os.path.join(
-        checkpoint_pth, "checkpoint_{}.pth".format(epoch)
+        checkpoint_pth, filename or "checkpoint_{}.pth".format(epoch)
     )
     to_save = {
-        "epoch": epoch + 1,
-        "val_losses": 1,
-        "model": model.cuda().state_dict(),
+        "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
         "lr_scheduler": lr_scheduler.state_dict(),
     }
     torch.save(to_save, checkpoint_dir)
-
-
-def save_model(max_epochs, checkpoint_pth, results_pth):
-    if not os.path.isdir(results_pth):
-        os.mkdir(results_pth)
-
-    best_checkpoint_pth = os.path.join(
-        checkpoint_pth, f"checkpoint_{max_epochs - 1}.pth"
-    )
-    best_model_pth = os.path.join(results_pth, "best_model.pth")
-    checkpoint = torch.load(best_checkpoint_pth)
-    torch.save(checkpoint["model"], best_model_pth)
+    checkpoint = torch.load(checkpoint_dir)
+    torch.save(checkpoint["model"], checkpoint_dir.replace('.pth', '_model.pth'))
 
 
 class AddGaussianNoise(object):
@@ -107,10 +98,9 @@ factors = ['1', '2', '4', '8']
     type=click.Path(
         exists=False,
         file_okay=False,
-        readable=False,
+        readable=True,
         path_type=Path,
     ),
-    default="models_segmentation/",
 )
 @click.option(
     "-tdp",
@@ -123,6 +113,18 @@ factors = ['1', '2', '4', '8']
     ),
     default="data",
 )
+@click.option(
+    "-mf",
+    "--model_filename",
+    type=click.STRING,
+)
+@click.option(
+    "-du",
+    "--dataset_usage",
+    type=click.IntRange(1, 100),
+    default=100
+)
+@click.option("-m", "--mode", type=click.Choice(RunModes), default='train')
 def main(
         max_epochs: int,
         batch_size: int,
@@ -132,8 +134,14 @@ def main(
         checkpoint_save_path: Path,
         model_save_path: Path,
         train_data_path: Path,
+        model_filename: Optional[str],
+        mode: Literal['train', 'test'],
+        dataset_usage: int = 100
 ):
     print(f"Running with parameters: {max_epochs=}, {batch_size=}, {num_workers=}, {factor=}")
+
+    if not model_save_path:
+        raise ValueError("Model save path (-msp, --model_save_path) must be provided")
 
     path_data = "data/"
     factor = int(factor)
@@ -141,14 +149,10 @@ def main(
     img_size = (512 // factor, 1024 // factor)
     percent_to_train = 90
 
-    flip_prob = 0.25
     import torchvision.transforms.v2 as transforms
     transform = transforms.Compose(
         [
-            # transforms.RandomHorizontalFlip(p=flip_prob),
-            # transforms.RandomRotation(degrees=25),
             transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 3.0)),
-            # AddGaussianNoise(mean=0., std=1., prob=0.15),
             transforms.ToTensor(),
         ],
     )
@@ -193,41 +197,77 @@ def main(
     )
 
     model = loader.load_model(
-        Models.UNetMixedTransformer, False, resolution=Resolutions.Full,
+        Models.UNetMixedTransformer, resolution=Resolutions.Full,
         num_classes=19,
     )
-
+    # model_loader = ModelLoader(
+    #     target_model=Models.UNetMixedTransformer,
+    #     resolution=Resolutions.Full,
+    #     checkpoint_load_path=str(checkpoint_load_path),
+    #     from_task=Task.SEGMENTATION,
+    #     to_task=Task.SEGMENTATION
+    # )
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    scheduler = StepLR(optimizer, 15, 0.1)
     lightning_model = LightningSegmentationRunner(
         model=model,
         criterion=cross_entropy2d,
-        get_metrics=get_metrics_lightning
+        get_metrics=get_metrics_lightning,
+        optimizer=optimizer,
+        lr_scheduler=scheduler
     )
 
-    callbacks = [
-        EarlyStopping(monitor='val_loss', mode='min', patience=5, verbose=True),
-        ModelCheckpoint(
-            monitor='val_loss',
-            dirpath='models_segmentation/',
-            filename='_'.join([f'factor-{factor}', '{epoch}-epochs', 'cb']),
-            mode='min',
-        ),
-        # FinetuningScheduler()
+    optimizer_used = len(optimizer.state) > 0
+    scheduler_used = scheduler.last_epoch > 0
+
+    model_filename_params = [
+        f'factor-{factor}',
+        f'ds-usage-{dataset_usage}',
+        f'batch-{batch_size}',
+        f'opt-{int(optimizer_used)}',
+        f'scheduler-{int(scheduler_used)}',
     ]
 
-    log_dir = f'results_segmentation_logs/'
-    loggers = [
-        TensorBoardLogger(log_dir)
-    ]
-    train_trainer = Trainer(
-        callbacks=callbacks,
-        max_epochs=max_epochs,
-        log_every_n_steps=5,
-        logger=loggers,
+    if checkpoint_load_path is None:
+        model_filename_params = ['base'] + model_filename_params
+
+    log_root_path = os.path.join('segmentation', 'logs', model_save_path)
+    log_last_dir = '_'.join(model_filename_params)
+    loggers = [TensorBoardLogger(log_root_path, name=log_last_dir)]
+
+    auto_model_filename = '_'.join(model_filename_params + ['{epoch}'])
+    model_filename = model_filename or auto_model_filename
+    model_save_path = os.path.join('segmentation', model_save_path)
+
+    if mode == 'train':
+        callbacks = [
+            EarlyStopping(monitor='val_loss', mode='min', patience=5, verbose=True),
+            ModelCheckpoint(
+                monitor='val_loss',
+                dirpath=model_save_path,
+                filename=model_filename,
+                mode='min',
+            ),
+        ]
+        train_trainer = Trainer(
+            callbacks=callbacks,
+            max_epochs=max_epochs,
+            log_every_n_steps=5,
+            logger=loggers,
+        )
+        train_trainer.fit(lightning_model, train_loader, valid_loader)
+        save_checkpoint(max_epochs, model, optimizer, scheduler, model_save_path, model_filename + '.pth')
+
+    test_lightning_model = LightningSegmentationRunner(
+        model=model,
+        criterion=cross_entropy2d,
+        get_metrics=get_metrics_lightning,
+        optimizer=optimizer,
+        lr_scheduler=scheduler
     )
-    train_trainer.fit(lightning_model, train_loader, valid_loader)
-
     test_trainer = Trainer(logger=loggers)
-    test_trainer.test(model=lightning_model, dataloaders=test_loader)
+    test_trainer.test(model=test_lightning_model, dataloaders=test_loader)
+
     return None
 
 
