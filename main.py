@@ -1,13 +1,13 @@
 import argparse
 import os
 
-from util.config import SEED
 from evaluate import Evaluater
 from model.trans_unet.vit_seg_modeling import TransUnetConfigType
 from options.dataset_resolution import Resolutions
 from options.model import Models
-from util.reproducibility import set_all_lib_seed
 from training import Trainer
+from util.config import SEED
+from util.reproducibility import set_all_lib_seed
 
 
 def get_args():
@@ -57,7 +57,7 @@ def get_args():
                         type=Models,
                         help='name of the model to be trained',
                         choices=list(Models),
-                        default=Models.MTUnet)
+                        default=Models.UNetMixedTransformer)
 
     # TransUnetConfig
     parser.add_argument('--vit_config',

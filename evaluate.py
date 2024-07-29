@@ -5,12 +5,12 @@ import torch
 import torchvision
 from tqdm import tqdm
 
-from util.config import DEVICE
 from dataset import datasets
 from dataset import transforms
 from depth.metrics import AverageMeter, Result
 from model import loader
 from options.dataset_resolution import shape_by_resolution
+from util.config import DEVICE
 from util.data import unpack_and_move
 from util.image import save_image_results
 from util.log import print_metrics
@@ -47,7 +47,7 @@ class Evaluater:
             os.mkdir(self.result_dir)
 
         self.device = DEVICE
-        self.model = loader.load_model(args.model, args.weights_path is not None, args.weights_path, eval=True)
+        self.model = loader.load_model(args.model, args.weights_path is not None, args.weights_path)
         self.model.to(self.device)
         self.test_loader = datasets.get_dataloader(
             args.dataset,
