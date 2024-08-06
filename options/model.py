@@ -14,7 +14,9 @@ class Models(Enum):
     UNetInceptionResNetv2 = 'unet_inception-resnet-v2'
     UNetVGG19BN = 'unet_vgg-19-bn'
     UNetXception = 'unet_xception'
-    UNetMixedTransformer = 'unet_mt'
+    UNetMixedTransformerB2 = 'unet_mt-b2'
+    UNetMixedTransformerB3 = 'unet_mt-b3'
+    UNetMixedTransformerB4 = 'unet_mt-b4'
 
     def __str__(self):
         return self.value

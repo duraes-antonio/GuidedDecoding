@@ -57,7 +57,7 @@ def get_args():
                         type=Models,
                         help='name of the model to be trained',
                         choices=list(Models),
-                        default=Models.UNetMixedTransformer)
+                        default=Models.UNetMixedTransformerB2)
 
     # TransUnetConfig
     parser.add_argument('--vit_config',

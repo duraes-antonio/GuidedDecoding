@@ -10,6 +10,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
 from torch.utils.data import DataLoader
+from torchinfo import summary
 
 from lightning_main_depth import RunModes
 from model import loader
@@ -71,6 +72,12 @@ factors = ['1', '2', '4', '8']
     default=Resolutions.Mini.value
 )
 @click.option(
+    "-m",
+    "--model",
+    type=click.Choice(list(map(str, Models))),
+    default=Models.UNetMixedTransformerB2.value
+)
+@click.option(
     "-clp",
     "--checkpoint_load_path",
     type=click.Path(
@@ -124,7 +131,7 @@ factors = ['1', '2', '4', '8']
     type=click.IntRange(1, 100),
     default=100
 )
-@click.option("-m", "--mode", type=click.Choice(RunModes), default='train')
+@click.option("-r", "--run_mode", type=click.Choice(RunModes), default='train')
 def main(
         max_epochs: int,
         batch_size: int,
@@ -135,8 +142,9 @@ def main(
         model_save_path: Path,
         train_data_path: Path,
         model_filename: Optional[str],
-        mode: Literal['train', 'test'],
-        dataset_usage: int = 100
+        run_mode: Literal['train', 'test'],
+        dataset_usage: int = 100,
+        model: str = Models.UNetMixedTransformerB2.value
 ):
     print(f"Running with parameters: {max_epochs=}, {batch_size=}, {num_workers=}, {factor=}")
 
@@ -148,6 +156,7 @@ def main(
     seed_everything(seed=SEED, workers=True)
     img_size = (512 // factor, 1024 // factor)
     percent_to_train = 90
+    model_type = Models(model)
 
     import torchvision.transforms.v2 as transforms
     transform = transforms.Compose(
@@ -197,7 +206,7 @@ def main(
     )
 
     model = loader.load_model(
-        Models.UNetMixedTransformer, resolution=Resolutions.Full,
+        model_type, resolution=Resolutions.Full,
         num_classes=19,
     )
     # model_loader = ModelLoader(
@@ -216,11 +225,18 @@ def main(
         optimizer=optimizer,
         lr_scheduler=scheduler
     )
-
+    summary(
+        model=model,
+        input_size=(batch_size, 3, 224, 224),
+        col_names=["input_size", "output_size", "num_params", "trainable"],
+        col_width=20,
+        row_settings=["var_names"]
+    )
     optimizer_used = len(optimizer.state) > 0
     scheduler_used = scheduler.last_epoch > 0
 
     model_filename_params = [
+        f'model-{model_type.value}',
         f'factor-{factor}',
         f'ds-usage-{dataset_usage}',
         f'batch-{batch_size}',
@@ -239,7 +255,7 @@ def main(
     model_filename = model_filename or auto_model_filename
     model_save_path = os.path.join('segmentation', model_save_path)
 
-    if mode == 'train':
+    if run_mode == 'train':
         callbacks = [
             EarlyStopping(monitor='val_loss', mode='min', patience=5, verbose=True),
             ModelCheckpoint(

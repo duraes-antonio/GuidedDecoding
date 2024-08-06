@@ -51,7 +51,9 @@ def get_segmentation_models(model: Models, num_classes=1, load_weight=True) -> O
         Models.UNetInceptionResNetv2: "inceptionresnetv2",
         Models.UNetVGG19BN: "vgg19_bn",
         Models.UNetXception: "tu-xception71",
-        Models.UNetMixedTransformer: "mit_b2",
+        Models.UNetMixedTransformerB2: "mit_b2",
+        Models.UNetMixedTransformerB3: "mit_b3",
+        Models.UNetMixedTransformerB4: "mit_b4",
     }
 
     if model in unet_encoder_by_enum:
