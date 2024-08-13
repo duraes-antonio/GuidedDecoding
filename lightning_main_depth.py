@@ -186,13 +186,13 @@ def main(
         scheduler = model_loader.scheduler
 
     chance_to_freeze = 0.7
-    should_freeze = True
+    should_freeze = False
 
     def freeze(module: nn.Module):
         for p in module.parameters():
             p.requires_grad = not freeze
 
-    if should_freeze:
+    if should_freeze and checkpoint_load_path:
         freeze(model.encoder.block1)
         # freeze(model.encoder.norm1)
         # freeze(model.encoder.patch_embed1)
