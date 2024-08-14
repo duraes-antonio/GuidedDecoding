@@ -4,7 +4,7 @@ pip install matplotlib
 pip install scipy
 pip install ml-collections
 pip install lightning
-pip install fire
+pip install click
 
 2. Baixar NYU datasets:
 https://drive.google.com/drive/folders/1rGa8LHQ46nBjjJSqcteRhi3i5R75J2yF?usp=drive_link
