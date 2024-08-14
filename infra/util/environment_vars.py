@@ -10,7 +10,6 @@ from infra.consts.environment import Environment
 class EnvironmentVars(TypedDict):
     google_credentials: dict
     google_token: dict
-    database_url: str
 
 
 def get_env_vars(env: Environment) -> EnvironmentVars:
@@ -20,7 +19,6 @@ def get_env_vars(env: Environment) -> EnvironmentVars:
         return {
             'google_credentials': ast.literal_eval(user_secrets.get_secret("GOOGLE_CREDENTIALS_JSON")),
             'google_token': ast.literal_eval(user_secrets.get_secret("GOOGLE_TOKEN_JSON")),
-            'database_url': user_secrets.get_secret("DATABASE_URL")
         }
 
     colab_env_path = '../drive/MyDrive/unet_depth/auth/.env'
@@ -29,5 +27,4 @@ def get_env_vars(env: Environment) -> EnvironmentVars:
     return {
         'google_credentials': ast.literal_eval(os.environ["GOOGLE_CREDENTIALS_JSON"]),
         'google_token': ast.literal_eval(os.environ["GOOGLE_TOKEN_JSON"]),
-        'database_url': os.environ["DATABASE_URL"]
     }
