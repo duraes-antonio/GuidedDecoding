@@ -1,3 +1,4 @@
+import os
 from os import path
 from pathlib import Path
 from random import shuffle
@@ -71,7 +72,7 @@ def run_train(
         checkpoint_filename: str,
 ):
     final_size = shape_by_resolution[resolution]
-    train_paths = read_nyu_csv(str(train_data_path))
+    train_paths = read_nyu_csv(str(train_data_path), repository_path=os.getcwd())
     shuffle(train_paths)
     train_paths = train_paths[:int(len(train_paths) * percent_dataset_used / 100)]
     transform_train = train_transform(final_size)

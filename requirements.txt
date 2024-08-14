@@ -9,6 +9,7 @@ numpy
 pillow
 python-dotenv
 scipy
+segmentation_models_pytorch
 torch
 torchaudio
 torchinfo
