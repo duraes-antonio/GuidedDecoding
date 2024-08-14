@@ -8,7 +8,6 @@ ml-collections
 numpy
 pillow
 python-dotenv
-pytorch-cuda==11.8
 scipy
 torch
 torchaudio

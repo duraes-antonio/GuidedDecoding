@@ -193,14 +193,6 @@ def main(
             p.requires_grad = not freeze
 
     if should_freeze and checkpoint_load_path:
-        freeze(model.encoder.block1)
-        # freeze(model.encoder.norm1)
-        # freeze(model.encoder.patch_embed1)
-        freeze(model.encoder.block2)
-        freeze(model.encoder.block3)
-        freeze(model.encoder.block4)
-        # freeze(model.encoder.norm2)
-        # freeze(model.encoder.patch_embed2)
         summary(
             model=model,
             input_size=(32, 3, 224, 224),
@@ -213,7 +205,6 @@ def main(
 
     model_filename_params = [
         f'model-{model_type.value}',
-        'freeze-b1-b2-b3-b4',
         f'size-{size.value}',
         f'ds-usage-{dataset_usage}',
         f'batch-{batch_size}',
