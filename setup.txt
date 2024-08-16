@@ -1,0 +1,13 @@
+1. Instalar dependências:
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+pip install matplotlib
+pip install scipy
+pip install ml-collections
+pip install lightning
+pip install click
+
+2. Baixar NYU datasets:
+https://drive.google.com/drive/folders/1rGa8LHQ46nBjjJSqcteRhi3i5R75J2yF?usp=drive_link
+
+3. Treinar:
+python main.py --train --dataset nyu_reduced --resolution mini --model trans-unet --data_path data/nyu2_train.csv --save_checkpoint ../checkpoints --load_checkpoint ../checkpoints/checkpoint_10.pth --num_epochs 5 --batch_size 8 --num_workers 1

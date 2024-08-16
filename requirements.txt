@@ -1,0 +1,16 @@
+click
+google-api-python-client==2.60.0
+google-auth-oauthlib==0.4.6
+google-auth==2.11.0
+lightning
+matplotlib
+ml-collections
+numpy
+pillow
+python-dotenv
+scipy
+segmentation_models_pytorch
+torch
+torchaudio
+torchinfo
+torchvision
