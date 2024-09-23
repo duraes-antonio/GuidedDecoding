@@ -84,7 +84,7 @@ class NyuNumpyZipDataset(Dataset):
             input_zip = ZipFile(zip_path)
             name_list = input_zip.namelist()
             data = {name: input_zip.read(name) for name in name_list}
-
+            del input_zip
         else:
             data = self.__folder_to_dict__(zip_path)
 
@@ -92,7 +92,6 @@ class NyuNumpyZipDataset(Dataset):
         self.data_filenames = list(self.data.keys())
         self.transform = transform
         self.n_data = len(self.data)
-        del input_zip
 
     @staticmethod
     def __folder_to_dict__(directory) -> Dict[str, str]:
