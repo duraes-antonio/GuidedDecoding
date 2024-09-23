@@ -1,89 +1,30 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 import segmentation_models_pytorch as smp
-import torch
 from segmentation_models_pytorch.base import SegmentationModel
+from torch.nn import ELU
 
-from model.mt_unet.mt_unet import MTUNet
-from model.mt_unet.mt_unet_3_plus import MTUNet3Plus
-from model.trans_att_unet.TransAttUnet import UNet_Attention_Transformer_Multiscale
-from model.trans_fuse.TransFuse import TransFuse_S
-from model.trans_fuse.TransFuse_pp import TransFuse_S_PlusPlus
-from model.trans_unet.vit_seg_modeling import VisionTransformer, CONFIGS, TransUnetConfigType
-from model.unet_3_plus.unet_3_plus import UNet_3Plus
-from model.unet_plus_plus.nested import NestedUNet, NestedUNetLuizBlock
-from model.unet_plus_plus.nested_luiz import LuizNestedUNet
-from model.unet_plus_plus.nested_resnet import NestedUNetResNetLB, NestedUNetResNet, NestedUNetResNet2
-from model.unet_plus_plus.nested_vgg import NestedUNetVGGLE, NestedUNetVGGLuizBlock, NestedUNetVGG16BNWFU_ECH, \
-    NestedUNetVGG16BN_ECH, NestedUNetVGG16BN_ECG_BL, NestedUNetVGG16BN_EL_BL
+from model.trans_unet.vit_seg_modeling import TransUnetConfigType, CONFIGS, VisionTransformer
 from options.dataset_resolution import Resolutions, shape_by_resolution
-from options.model import Models
+from options.model import Models, Encoders
 
 
 def load_model(
-        model: Models, load_weights=False,
-        path_weights='results/best_model.pth',
+        model: Models,
         resolution=Resolutions.Half,
-        trans_unet_config: TransUnetConfigType = TransUnetConfigType.r50_vit_b16
+        trans_unet_config: TransUnetConfigType = TransUnetConfigType.r50_vit_b16,
+        num_classes=1
 ):
-    model_instance = get_segmentation_models(model)
-
-    if model == Models.UNet3Plus:
-        model_instance = UNet_3Plus()
-
-    if model == Models.UNetPlusPlusLuiz:
-        model_instance = LuizNestedUNet()
-
-    if model == Models.UNetPlusPlus:
-        model_instance = NestedUNet()
-
-    if model == Models.UNetPlusPlus_BL:
-        model_instance = NestedUNetLuizBlock()
-
-    """VGG16 Batch normalization"""
-    if model == Models.UNetPlusPlusVGGBN:
-        model_instance = NestedUNetVGG16BN_ECH()
-
-    if model == Models.UNetPlusPlusVGGBN_BL:
-        model_instance = NestedUNetVGG16BN_ECG_BL()
-
-    if model == Models.UNetPlusPlusVGGBN_EL_BL:
-        model_instance = NestedUNetVGG16BN_EL_BL()
-
-    if model == Models.UNetPlusPlusVGGBN_WFU:
-        model_instance = NestedUNetVGG16BNWFU_ECH()
-
-    if model == Models.UNetPlusPlusVGG:
-        model_instance = NestedUNetVGGLE()
-
-    if model == Models.UNetPlusPlusVGG_BL:
-        model_instance = NestedUNetVGGLuizBlock()
-
-    """ResNet 101"""
-    if model == Models.UNetPlusPlusResNet_WFU:
-        model_instance = NestedUNetResNet2()
-
-    if model == Models.UNetPlusPlusResNet:
-        model_instance = NestedUNetResNet()
-
-    if model == Models.UNetPlusPlusResNet_BL:
-        model_instance = NestedUNetResNetLB()
-
-    if model == Models.MTUnet:
-        model_instance = MTUNet(1)
-
-    if model == Models.TransFuse:
-        model_instance = TransFuse_S(1, pretrained=True)
-
-    if model == Models.TransFusePlusPlus:
-        model_instance = TransFuse_S_PlusPlus(1, pretrained=True)
-
-    if model == Models.MTUnet3Plus:
-        model_instance = MTUNet3Plus(1)
-
-    if model == Models.TransAttentionUnet:
-        model_instance = UNet_Attention_Transformer_Multiscale(3, 1)
+    is_coatnet = model in {
+        Models.UNetCoatNet2Custom,
+        Models.UNetCoatNet3Custom,
+        Models.UNetCoatLiteMedium,
+        Models.UNetPlusPlusCoatNet2Custom,
+        Models.UNetPlusPlusCoatNet3Custom,
+        Models.UNetPlusPlusCoatLiteMedium,
+    }
+    model_instance = get_pytorch_segmentation_models(model, num_classes, load_weight=not is_coatnet)
 
     if model == Models.TransUnet:
         config_vit = CONFIGS[trans_unet_config.value]
@@ -97,57 +38,73 @@ def load_model(
         model_instance = VisionTransformer(config_vit, img_size=img_size, num_classes=config_vit.n_classes).cuda()
         model_instance.load_from(weights=np.load(config_vit.pretrained_path))
 
-    if load_weights:
-        model_instance.load_state_dict(torch.load(path_weights))
-
-    print(type(model_instance))
     return model_instance
 
 
-def get_segmentation_models(model: Models) -> Optional[SegmentationModel]:
+def get_pytorch_segmentation_encoder(
+        model: Models,
+) -> str:
+    smp_encoder_by_name: Dict[Encoders, str] = {
+        Encoders.InceptionResNetV2: 'inceptionresnetv2',
+        Encoders.VGG19BN: 'vgg19_bn',
+        Encoders.Xception: 'xception',
+        Encoders.MixedTransformerB2: 'mit_b2',
+
+        Encoders.CoatLiteMedium224: 'coat_lite_medium',
+        Encoders.CoatLiteMedium384: 'coat_lite_medium',
+        Encoders.CoatNet2_224: 'coatnet-2_224',
+        Encoders.CoatNet2_384: 'coatnet-2_384',
+        Encoders.CoatNet3_224: 'coatnet-3_224',
+    }
+    for encoder_name in Encoders:
+        if model.value.endswith(encoder_name.value):
+            return smp_encoder_by_name[encoder_name]
+
+
+def get_pytorch_segmentation_models(
+        model: Models,
+        num_classes=1,
+        load_weight=True,
+        resolution=Resolutions.Mini
+) -> Optional[SegmentationModel]:
     sm_default_args = {
-        'encoder_weights': 'imagenet',
-        'classes': 1,
+        "encoder_weights": "imagenet" if load_weight else None,
+        "classes": num_classes,
+        "activation": ELU
     }
-    unet_plus_plus_encoder_by_enum = {
-        Models.UNetPlusPlusSENet154: 'senet154',
-        Models.UNetPlusPlusInceptionResNetv2: 'inceptionresnetv2',
-        Models.UNetPlusPlusVGG19BN: 'vgg19_bn',
-        Models.UNetPlusPlusXception: 'tu-xception71',
-        Models.UNetPlusPlusEfficientNet: 'efficientnet-b6',
+    is_coatnet_3 = model in {
+        Models.UNetCoatNet3_224,
+        Models.UNetPlusPlusCoatNet3_224,
     }
+    smp_encoder_name = get_pytorch_segmentation_encoder(model)
 
-    if model in unet_plus_plus_encoder_by_enum:
-        return smp.UnetPlusPlus(encoder_name=unet_plus_plus_encoder_by_enum[model], **sm_default_args)
+    if is_coatnet_3:
+        assert resolution != Resolutions.Mini, "CoatNet-3 only supports (224, 224) size"
 
-    unet_encoder_by_enum = {
-        Models.UNetSENet154: 'senet154',
-        Models.UNetInceptionResNetv2: 'inceptionresnetv2',
-        Models.UNetVGG19BN: 'vgg19_bn',
-        Models.UNetXception: 'tu-xception71',
-        Models.UNetMixedTransformer: 'mit_b2',
-        Models.UNetEfficientNet: 'efficientnet-b6',
-    }
+    is_coatnet_2_or_coat = model in {
+        Models.UNetCoatNet2_224,
+        Models.UNetCoatNet2_384,
+        Models.UNetCoatLiteMedium_224,
+        Models.UNetCoatLiteMedium_384,
 
-    if model in unet_encoder_by_enum:
-        return smp.Unet(encoder_name=unet_encoder_by_enum[model], **sm_default_args)
-
-    ma_net_encoder_by_enum = {
-        Models.MANetSENet154: 'senet154',
-        Models.MANetInceptionResNetV2: 'inceptionresnetv2',
-        Models.MANetXception: 'tu-xception71',
-        Models.MANetMixedTransformer: 'mit_b2',
+        Models.UNetPlusPlusCoatNet2_224,
+        Models.UNetPlusPlusCoatNet2_384,
+        Models.UNetPlusPlusCoatLiteMedium_224,
+        Models.UNetPlusPlusCoatLiteMedium_384,
     }
 
-    if model in ma_net_encoder_by_enum:
-        return smp.MAnet(encoder_name=ma_net_encoder_by_enum[model], **sm_default_args)
+    if is_coatnet_2_or_coat:
+        accepted_resolutions = {
+            Resolutions.Square224,
+            Resolutions.Square384,
+        }
+        error_message = f"{model} only supports {accepted_resolutions} size"
+        assert resolution not in accepted_resolutions, error_message
 
-    pan_net_encoder_by_enum = {
-        Models.PANNetSENet154: 'senet154',
-        Models.PANNetXception: 'tu-xception71',
-    }
+    if model.value.startswith('unet++'):
+        return smp.UnetPlusPlus(encoder_name=smp_encoder_name, **sm_default_args)
 
-    if model in pan_net_encoder_by_enum:
-        return smp.PAN(encoder_name=pan_net_encoder_by_enum[model], **sm_default_args)
+    if model.value.startswith('unet'):
+        return smp.Unet(encoder_name=smp_encoder_name, **sm_default_args)
 
     return None

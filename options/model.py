@@ -4,55 +4,47 @@ from enum import Enum
 ssl._create_default_https_context = ssl._create_unverified_context
 
 
+class Encoders(Enum):
+    InceptionResNetV2 = 'inception-resnet-v2'
+    VGG19BN = 'vgg-19-bn'
+    Xception = 'xception'
+    MixedTransformerB2 = 'mt-b2'
+    MixedTransformerB3 = 'mt-b3'
+    MixedTransformerB4 = 'mt-b4'
+
+    CoatLiteMedium224 = 'coat-lite-medium_224'
+    CoatLiteMedium384 = 'coat-lite-medium_384'
+    CoatNet2_224 = 'coatnet-2_224'
+    CoatNet2_384 = 'coatnet-2_384'
+    CoatNet3_224 = 'coatnet-3_224'
+
+    def __str__(self):
+        return self.value
+
+
 class Models(Enum):
-    Custom = 'custom'
-    MTUnet = 'mt-unet'
-    TransFuse = 'transfuse'
-    TransFusePlusPlus = 'transfuse++'
-    MTUnet3Plus = 'mt-unet3+'
-    TransAttentionUnet = 'trans-att-unet'
-    MTUnetCustom = 'mt-unet-custom'
-    NestedUnet = 'nested-unet'
-    UNet3Plus = 'unet3+'
-    UNet3PlusCustom = 'unet3+c'
-    UNetPlusPlusLuiz = 'unet++-luiz'
-    UNetPlusPlus = 'unet++'
-    UNetPlusPlus_BL = 'unet++-bl'
-
-    UNetPlusPlusVGG = 'unet++-vgg'
-
-    UNetPlusPlusVGGBN = 'unet++-vgg-bn'
-    UNetPlusPlusVGGBN_WFU = 'unet++-vgg-bn-wfu'
-    UNetPlusPlusVGGBN_BL = 'unet++-vgg-bn-bl'
-    UNetPlusPlusVGGBN_EL_BL = 'unet++-vgg-bn-el-bl'
-
-    UNetPlusPlusVGG_BL = 'unet++-vgg-bl'
-    UNetPlusPlusResNet = 'unet++-resnet'
-    UNetPlusPlusResNet_WFU = 'unet++-resnet-wfu'
-    UNetPlusPlusResNet_BL = 'unet++-resnet-bl'
     TransUnet = 'trans-unet'
 
-    UNetPlusPlusSENet154 = 'unet++_senet-154'
-    UNetPlusPlusInceptionResNetv2 = 'unet++_inception-resnet-v2'
-    UNetPlusPlusVGG19BN = 'unet++_vgg-19-bn'
-    UNetPlusPlusXception = 'unet++_xception'
-    UNetPlusPlusEfficientNet = 'unet++_efficientnet'
+    UNetPlusPlusInceptionResNetv2 = f'unet++_{Encoders.InceptionResNetV2}'
+    UNetPlusPlusVGG19BN = f'unet++_{Encoders.VGG19BN}'
+    UNetPlusPlusXception = f'unet++_{Encoders.Xception}'
+    UNetPlusPlusCoatLiteMedium_224 = f'unet++_{Encoders.CoatLiteMedium224}'
+    UNetPlusPlusCoatLiteMedium_384 = f'unet++_{Encoders.CoatLiteMedium384}'
+    UNetPlusPlusCoatNet2_224 = f'unet++_{Encoders.CoatNet2_224}'
+    UNetPlusPlusCoatNet2_384 = f'unet++_{Encoders.CoatNet2_384}'
+    UNetPlusPlusCoatNet3_224 = f'unet++_{Encoders.CoatNet3_224}'
 
-    UNetEfficientNet = 'unet_efficientnet'
-    UNetSENet154 = 'unet_senet-154'
-    UNetInceptionResNetv2 = 'unet_inception-resnet-v2'
-    UNetVGG19BN = 'unet_vgg-19-bn'
-    UNetXception = 'unet_xception'
-    UNetMixedTransformer = 'unet_mt'
-
-    MANetSENet154 = 'ma-net_senet-154'
-    MANetInceptionResNetV2 = 'ma-net_inception-resnet-v2'
-    MANetXception = 'ma-net_xception'
-    MANetMixedTransformer = 'ma-net_mt'
-
-    PANNetSENet154 = 'pan_senet-154'
-    PANMobileVITV2 = 'pan_mobilevit-v2-200'
-    PANNetXception = 'pan_xception'
+    UNetInceptionResNetv2 = f'unet_{Encoders.InceptionResNetV2}'
+    UNetVGG19BN = f'unet_{Encoders.VGG19BN}'
+    UNetXception = f'unet_{Encoders.Xception}'
+    UNetMixedTransformerB2 = f'unet_{Encoders.MixedTransformerB2}'
+    UNetMixedTransformerB3 = f'unet_{Encoders.MixedTransformerB3}'
+    UNetMixedTransformerB4 = f'unet_{Encoders.MixedTransformerB4}'
+    UNetCoatLiteMedium_224 = f'unet_{Encoders.CoatLiteMedium224}'
+    UNetCoatLiteMedium_384 = f'unet_{Encoders.CoatLiteMedium384}'
+    UNetCoatNet2_224 = f'unet_{Encoders.CoatNet2_224}'
+    UNetCoatNet2_384 = f'unet_{Encoders.CoatNet2_384}'
+    UNetCoatNet3_224 = f'unet_{Encoders.CoatNet3_224}'
 
     def __str__(self):
         return self.value

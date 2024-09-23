@@ -1,9 +1,11 @@
 from typing import Literal, List, Dict, Tuple, Union
 
+from torch import Tensor
+
 PyTorchDevice = Literal['cpu', 'cuda']
 
 
-def unpack_and_move(device: PyTorchDevice, data: Union[List, Tuple, Dict]):
+def unpack_and_move(device: PyTorchDevice, data: Union[List, Tuple, Dict]) -> Tuple[Tensor, Tensor]:
     if isinstance(data, (tuple, list)):
         image = data[0].to(device, non_blocking=True)
         gt = data[1].to(device, non_blocking=True)
