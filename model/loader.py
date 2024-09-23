@@ -16,14 +16,14 @@ def load_model(
         trans_unet_config: TransUnetConfigType = TransUnetConfigType.r50_vit_b16,
         num_classes=1
 ):
-    is_coatnet = model in {
-        Models.UNetCoatNet2Custom,
-        Models.UNetCoatNet3Custom,
-        Models.UNetCoatLiteMedium,
-        Models.UNetPlusPlusCoatNet2Custom,
-        Models.UNetPlusPlusCoatNet3Custom,
-        Models.UNetPlusPlusCoatLiteMedium,
-    }
+    is_coatnet = any(
+        model.value.endswith(encoder_name.value) for encoder_name in {
+            Encoders.CoatLiteMedium384,
+            Encoders.CoatNet2_384,
+            Encoders.CoatNet3_224,
+            Encoders.CoatLiteMedium224,
+            Encoders.CoatLiteMedium384,
+        })
     model_instance = get_pytorch_segmentation_models(model, num_classes, load_weight=not is_coatnet)
 
     if model == Models.TransUnet:
