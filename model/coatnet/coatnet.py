@@ -99,14 +99,14 @@ class CoatLiteMediumSMP(nn.Module, EncoderMixin):
 
 
 def register_smp_custom_encoders():
-    smp.encoders.encoders[Encoders.CoatNet2_224] = {
+    smp.encoders.encoders[Encoders.CoatNet2_224.value] = {
         "encoder": CoatNet2SMP,
         "pretrained_settings": {},
         "params": {
             'input_size': (3, 224, 224),
         },
     }
-    smp.encoders.encoders[Encoders.CoatNet2_384] = {
+    smp.encoders.encoders[Encoders.CoatNet2_384.value] = {
         "encoder": CoatNet2SMP,
         "pretrained_settings": {},
         "params": {
@@ -114,20 +114,20 @@ def register_smp_custom_encoders():
         },
     }
 
-    smp.encoders.encoders[Encoders.CoatNet3_224] = {
+    smp.encoders.encoders[Encoders.CoatNet3_224.value] = {
         "encoder": CoatNet3SMP,
         "pretrained_settings": {},
         "params": {},
     }
 
-    smp.encoders.encoders[Encoders.CoatLiteMedium224] = {
+    smp.encoders.encoders[Encoders.CoatLiteMedium224.value] = {
         "encoder": CoatLiteMediumSMP,
         "pretrained_settings": {},
         "params": {
             'input_size': (3, 224, 224),
         },
     }
-    smp.encoders.encoders[Encoders.CoatLiteMedium384] = {
+    smp.encoders.encoders[Encoders.CoatLiteMedium384.value] = {
         "encoder": CoatLiteMediumSMP,
         "pretrained_settings": {},
         "params": {
