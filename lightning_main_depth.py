@@ -13,7 +13,7 @@ from torchinfo import summary
 
 from depth.losses import DepthLoss
 from depth.model_loader import ModelLoader
-from depth.runners import run_test, run_train
+from depth.runners import run_test, run_train, run_inference
 from model import loader
 from options.dataset_resolution import Resolutions
 from options.model import Models
@@ -41,7 +41,8 @@ def save_checkpoint(model, optimizer, lr_scheduler, checkpoint_pth, filename: st
     torch.save(checkpoint["model"], checkpoint_dir.replace('.pth', '_model.pth'))
 
 
-RunModes = ['train', 'test']
+RunModes = ['train', 'test', 'inference']
+RunModesLiteral = Literal[tuple(RunModes)]
 
 
 @click.command()
@@ -126,6 +127,14 @@ RunModes = ['train', 'test']
     type=click.IntRange(1, 100),
     default=100
 )
+@click.option(
+    "-ss",
+    "--show_summary",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Show model summary"
+)
 def main(
         max_epochs: int,
         batch_size: int,
@@ -137,9 +146,10 @@ def main(
         test_data_path: Path,
         run_directory: Path,
         model_filename: Optional[str],
-        mode_run: Literal['train', 'test'],
+        mode_run: RunModesLiteral,
         model: str,
-        dataset_usage: int = 100
+        dataset_usage: int = 100,
+        show_summary: bool = False,
 ):
     seed_everything(seed=SEED, workers=True)
     percent_to_train = 90
@@ -192,10 +202,10 @@ def main(
         for p in module.parameters():
             p.requires_grad = not freeze
 
-    if should_freeze and checkpoint_load_path:
+    if show_summary and (mode_run == 'train' or (should_freeze and checkpoint_load_path)):
         summary(
             model=model,
-            input_size=(32, 3, 224, 224),
+            input_size=(32, 3, 384, 384),
             col_names=["input_size", "output_size", "num_params", "trainable"],
             col_width=20,
             row_settings=["var_names"]
@@ -236,6 +246,11 @@ def main(
 
     if mode_run == 'test':
         run_test(model, optimizer, scheduler, loggers, test_data_path, size)
+
+    if mode_run == 'inference':
+        if not os.path.exists(f'results_{model_filename}'):
+            os.makedirs(f'results_{model_filename}')
+        run_inference(model, optimizer, scheduler, test_data_path, size, f'results_{model_filename}')
 
     return None
 

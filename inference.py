@@ -5,14 +5,14 @@ import time
 import tensorrt as trt
 import torch
 import torchvision
+from data import transforms
+from metrics import AverageMeter, Result
 from torch2trt import torch2trt
 
-from util.config import DEVICE
-from data import transforms
 from dataset.datasets import get_dataloader
-from metrics import AverageMeter, Result
 from model import loader
 from options.dataset_resolution import shape_by_resolution, Resolutions
+from util.config import DEVICE
 from util.data import unpack_and_move
 from util.image import save_image_results
 from util.log import print_metrics
@@ -284,17 +284,6 @@ class Inference_Engine:
         depth = self.maxDepth / depth
         depth = torch.clamp(depth, self.maxDepth / 100, self.maxDepth)
         return depth
-
-    def depth_norm(self, depth):
-        depth = torch.clamp(depth, self.maxDepth / 100, self.maxDepth)
-        depth = self.maxDepth / depth
-        return depth
-
-
-class Dict2Obj(object):
-    def __init__(self, dictionary):
-        for key in dictionary:
-            setattr(self, key, dictionary[key])
 
 
 if __name__ == "__main__":
