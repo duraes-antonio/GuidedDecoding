@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import csv
+import os
 from io import BytesIO
 from os import path
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from zipfile import ZipFile
 
 import numpy as np
@@ -14,8 +15,7 @@ from torch import Tensor, nn
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from dataset.transforms import RandomHorizontalFlip, RandomChannelSwap, ToTensor, Resize, PairToDict, UnsqueezeDict, \
-    ResizeOnlyImage
+from dataset.transforms import RandomHorizontalFlip, RandomChannelSwap, ToTensor, Resize, PairToDict, ResizeOnlyImage
 
 
 # TODO: Substituir por generator?
@@ -79,16 +79,33 @@ class NyuDataset(Dataset):
 # TODO: Pensar em como unir tudo em uma classe de dataset apenas
 class NyuNumpyZipDataset(Dataset):
     def __init__(self, zip_path: str, transform: nn.Module = None):
-        input_zip = ZipFile(zip_path)
-        name_list = input_zip.namelist()
-        data = {name: input_zip.read(name) for name in name_list}
+
+        if zip_path.endswith(".zip"):
+            input_zip = ZipFile(zip_path)
+            name_list = input_zip.namelist()
+            data = {name: input_zip.read(name) for name in name_list}
+
+        else:
+            data = self.__folder_to_dict__(zip_path)
+
         self.data = data
+        self.data_filenames = list(self.data.keys())
         self.transform = transform
         self.n_data = len(self.data)
         del input_zip
 
+    @staticmethod
+    def __folder_to_dict__(directory) -> Dict[str, str]:
+        files_dict = {}
+
+        for root, dirs, files in os.walk(directory):
+            for filename in files:
+                full_path = (os.path.join(root, filename))
+                files_dict[filename] = full_path
+        return files_dict
+
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
-        key_item = list(self.data.keys())[index]
+        key_item = self.data_filenames[index]
         data_numpy = np.load(BytesIO(self.data[key_item]))
         image = torch.from_numpy(data_numpy["image"]).type(torch.float32)
         depth = torch.from_numpy(data_numpy["depth"]).type(torch.float32)
