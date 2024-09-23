@@ -83,7 +83,7 @@ class CoatLiteMediumSMP(nn.Module, EncoderMixin):
             return_interm_layers=True,
             out_features=['x1_nocls', 'x2_nocls', 'x3_nocls', 'x4_nocls'],
         )
-        self._out_channels: List[int] = [3, 3, 128, 256, 320, 512]
+        self._out_channels: List[int] = [0, 0, 128, 256, 320, 512]
         self._depth: int = 5
         self._in_channels: int = 3
 
