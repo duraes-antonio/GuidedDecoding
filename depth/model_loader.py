@@ -2,7 +2,6 @@ from typing import Dict, Any, OrderedDict, Optional, Tuple
 
 import torch
 from torch import nn
-from torch.nn import Identity, ELU
 from torch.optim import Optimizer, Adam
 from torch.optim.lr_scheduler import LRScheduler, StepLR
 
@@ -57,8 +56,9 @@ class ModelLoader:
                 # self.scheduler = s
                 # print(f'--> Loaded from GUIDED checkpoint:\nPATH: {checkpoint_load_path}')
 
-            new_last_layer = __get_last_layer__(to_task)
-            self.model.segmentation_head[0] = new_last_layer
+            if from_task.value != to_task.value:
+                new_last_layer = __get_last_layer__(to_task)
+                self.model.segmentation_head[0] = new_last_layer
 
         self.optimizer = Adam(self.model.parameters(), learning_rate)
         self.scheduler = StepLR(self.optimizer, scheduler_step_size, 0.1)

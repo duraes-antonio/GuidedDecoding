@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 import segmentation_models_pytorch as smp
@@ -7,7 +7,7 @@ from torch.nn import ELU
 
 from model.trans_unet.vit_seg_modeling import TransUnetConfigType, CONFIGS, VisionTransformer
 from options.dataset_resolution import Resolutions, shape_by_resolution
-from options.model import Models
+from options.model import Models, Encoders
 
 
 def load_model(
@@ -16,7 +16,15 @@ def load_model(
         trans_unet_config: TransUnetConfigType = TransUnetConfigType.r50_vit_b16,
         num_classes=1
 ):
-    model_instance = get_segmentation_models(model, num_classes)
+    is_coatnet = model in {
+        Models.UNetCoatNet2Custom,
+        Models.UNetCoatNet3Custom,
+        Models.UNetCoatLiteMedium,
+        Models.UNetPlusPlusCoatNet2Custom,
+        Models.UNetPlusPlusCoatNet3Custom,
+        Models.UNetPlusPlusCoatLiteMedium,
+    }
+    model_instance = get_pytorch_segmentation_models(model, num_classes, load_weight=not is_coatnet)
 
     if model == Models.TransUnet:
         config_vit = CONFIGS[trans_unet_config.value]
@@ -33,30 +41,70 @@ def load_model(
     return model_instance
 
 
-def get_segmentation_models(model: Models, num_classes=1, load_weight=True) -> Optional[SegmentationModel]:
-    sm_default_args = {"encoder_weights": "imagenet" if load_weight else None, "classes": num_classes,
-                       "activation": ELU}
-    unet_plus_plus_encoder_by_enum = {
-        Models.UNetPlusPlusInceptionResNetv2: "inceptionresnetv2",
-        Models.UNetPlusPlusVGG19BN: "vgg19_bn",
-        Models.UNetPlusPlusXception: "tu-xception71",
+def get_pytorch_segmentation_encoder(
+        model: Models,
+) -> str:
+    smp_encoder_by_name: Dict[Encoders, str] = {
+        Encoders.InceptionResNetV2: 'inceptionresnetv2',
+        Encoders.VGG19BN: 'vgg19_bn',
+        Encoders.Xception: 'xception',
+        Encoders.MixedTransformerB2: 'mit_b2',
+
+        Encoders.CoatLiteMedium224: 'coat_lite_medium',
+        Encoders.CoatLiteMedium384: 'coat_lite_medium',
+        Encoders.CoatNet2_224: 'coatnet-2_224',
+        Encoders.CoatNet2_384: 'coatnet-2_384',
+        Encoders.CoatNet3_224: 'coatnet-3_224',
+    }
+    for encoder_name in Encoders:
+        if model.value.endswith(encoder_name.value):
+            return smp_encoder_by_name[encoder_name]
+
+
+def get_pytorch_segmentation_models(
+        model: Models,
+        num_classes=1,
+        load_weight=True,
+        resolution=Resolutions.Mini
+) -> Optional[SegmentationModel]:
+    sm_default_args = {
+        "encoder_weights": "imagenet" if load_weight else None,
+        "classes": num_classes,
+        "activation": ELU
+    }
+    is_coatnet_3 = model in {
+        Models.UNetCoatNet3_224,
+        Models.UNetPlusPlusCoatNet3_224,
+    }
+    smp_encoder_name = get_pytorch_segmentation_encoder(model)
+
+    if is_coatnet_3:
+        assert resolution != Resolutions.Mini, "CoatNet-3 only supports (224, 224) size"
+
+    is_coatnet_2_or_coat = model in {
+        Models.UNetCoatNet2_224,
+        Models.UNetCoatNet2_384,
+        Models.UNetCoatLiteMedium_224,
+        Models.UNetCoatLiteMedium_384,
+
+        Models.UNetPlusPlusCoatNet2_224,
+        Models.UNetPlusPlusCoatNet2_384,
+        Models.UNetPlusPlusCoatLiteMedium_224,
+        Models.UNetPlusPlusCoatLiteMedium_384,
     }
 
-    if model in unet_plus_plus_encoder_by_enum:
-        return smp.UnetPlusPlus(
-            encoder_name=unet_plus_plus_encoder_by_enum[model], **sm_default_args
-        )
+    if is_coatnet_2_or_coat:
+        accepted_resolutions = {
+            Resolutions.Square224,
+            Resolutions.Square384,
+        }
+        error_message = f"{model} only supports {accepted_resolutions} size"
+        assert resolution not in accepted_resolutions, error_message
 
-    unet_encoder_by_enum = {
-        Models.UNetInceptionResNetv2: "inceptionresnetv2",
-        Models.UNetVGG19BN: "vgg19_bn",
-        Models.UNetXception: "xception",
-        Models.UNetMixedTransformerB2: "mit_b2",
-        Models.UNetMixedTransformerB3: "mit_b3",
-        Models.UNetMixedTransformerB4: "mit_b4",
-    }
+    if model.value.startswith('unet++'):
+        return smp.UnetPlusPlus(encoder_name=smp_encoder_name, **sm_default_args)
 
-    if model in unet_encoder_by_enum:
-        return smp.Unet(encoder_name=unet_encoder_by_enum[model], **sm_default_args)
+    if model.value.startswith('unet'):
+        return smp.Unet(encoder_name=smp_encoder_name, **sm_default_args)
 
     return None

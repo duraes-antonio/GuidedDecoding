@@ -81,6 +81,11 @@ class LightningSegmentationRunner(LightningModule):
         self.log_dict(values, on_step=False, on_epoch=True, logger=True)
         return values
 
+    def predict_step(self, batch: Iterable[Tensor], batch_idx: int) -> STEP_OUTPUT:
+        images, _ = batch
+        images = images.to(self.device)
+        return self.model(images)
+
     def validation_step(self, batch: Iterable[Tensor], batch_idx: int) -> STEP_OUTPUT:
         values = self.calculate_metrics(batch)
         values = {f'val_{k}': v for k, v in values.items()}
