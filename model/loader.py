@@ -50,8 +50,8 @@ def get_pytorch_segmentation_encoder(
         Encoders.Xception: 'xception',
         Encoders.MixedTransformerB2: 'mit_b2',
 
-        Encoders.CoatLiteMedium224: 'coat_lite_medium',
-        Encoders.CoatLiteMedium384: 'coat_lite_medium',
+        Encoders.CoatLiteMedium224: 'coat-lite-medium_224',
+        Encoders.CoatLiteMedium384: 'coat-lite-medium_384',
         Encoders.CoatNet2_224: 'coatnet-2_224',
         Encoders.CoatNet2_384: 'coatnet-2_384',
         Encoders.CoatNet3_224: 'coatnet-3_224',

@@ -3,9 +3,10 @@ from typing import List
 import segmentation_models_pytorch as smp
 import timm
 import torch
-import torch.nn.functional as F
 from segmentation_models_pytorch.encoders._base import EncoderMixin
 from torch import nn, Tensor
+
+from options.model import Encoders
 
 
 class CoatNet2SMP(nn.Module, EncoderMixin):
@@ -88,23 +89,24 @@ class CoatLiteMediumSMP(nn.Module, EncoderMixin):
 
     def forward(self, x: Tensor) -> List[Tensor]:
         b, c, h, w = x.shape
-        x_half = F.interpolate(x, scale_factor=0.5, mode='bilinear', align_corners=False)
-        # dummy = torch.empty([b, 0, h // 2, w // 2], dtype=x.dtype, device=x.device)
+        # x_half = F.interpolate(x, scale_factor=0.5, mode='bilinear', align_corners=False)
+        dummy_full = torch.empty([b, 0, h, w], dtype=x.dtype, device=x.device)
+        dummy_half = torch.empty([b, 0, h // 2, w // 2], dtype=x.dtype, device=x.device)
         out = self.model.forward_features(x)
         out = [out[key] for key in out.keys()]
-        out = [x, x_half] + out
+        out = [dummy_full, dummy_half] + out
         return out
 
 
-def __register_smp_custom_encoders__():
-    smp.encoders.encoders["coatnet-2_224"] = {
+def register_smp_custom_encoders():
+    smp.encoders.encoders[Encoders.CoatNet2_224] = {
         "encoder": CoatNet2SMP,
         "pretrained_settings": {},
         "params": {
             'input_size': (3, 224, 224),
         },
     }
-    smp.encoders.encoders["coatnet-2_384"] = {
+    smp.encoders.encoders[Encoders.CoatNet2_384] = {
         "encoder": CoatNet2SMP,
         "pretrained_settings": {},
         "params": {
@@ -112,26 +114,23 @@ def __register_smp_custom_encoders__():
         },
     }
 
-    smp.encoders.encoders["coatnet-3_224"] = {
+    smp.encoders.encoders[Encoders.CoatNet3_224] = {
         "encoder": CoatNet3SMP,
         "pretrained_settings": {},
         "params": {},
     }
 
-    smp.encoders.encoders["coat-lite-medium_224"] = {
+    smp.encoders.encoders[Encoders.CoatLiteMedium224] = {
         "encoder": CoatLiteMediumSMP,
         "pretrained_settings": {},
         "params": {
             'input_size': (3, 224, 224),
         },
     }
-    smp.encoders.encoders["coat-lite-medium_384"] = {
+    smp.encoders.encoders[Encoders.CoatLiteMedium384] = {
         "encoder": CoatLiteMediumSMP,
         "pretrained_settings": {},
         "params": {
             'input_size': (3, 384, 384),
         },
     }
-
-
-__register_smp_custom_encoders__()

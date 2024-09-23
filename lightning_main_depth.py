@@ -15,12 +15,14 @@ from depth.losses import DepthLoss
 from depth.model_loader import ModelLoader
 from depth.runners import run_test, run_train, run_inference
 from model import loader
+from model.coatnet.coatnet import register_smp_custom_encoders
 from options.dataset_resolution import Resolutions
 from options.model import Models
 from options.task import Task
 from util.config import SEED, DEVICE
 
 torch.set_float32_matmul_precision('medium')
+register_smp_custom_encoders()
 
 
 def save_checkpoint(model, optimizer, lr_scheduler, checkpoint_pth, filename: str):
